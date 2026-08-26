@@ -74,6 +74,27 @@ para no llegar al TP5 sin nada que testear:
    asignaciones cargadas) cada vez que cambia el rango de fechas seleccionado — no es un valor
    estático que devuelve el backend.
 
+## Docker: frontend con URL absoluta + CORS, no proxy relativo
+
+El TP2 (§2.6) da dos caminos para que el frontend contenerizado hable con el backend: (a) rutas
+relativas `/api` con un proxy en nginx, o (b) URL absoluta al puerto publicado del backend + CORS. Ya
+existía código con el camino (b) desde antes de dockerizar (`VITE_API_URL` en `frontend/src/api/client.js`,
+consumida por Axios, más `AddCors`/`UseCors` en `Program.cs` habilitando el origen del frontend), así
+que se mantuvo esa decisión en vez de reescribirla al camino (a):
+
+- `VITE_API_URL` se pasa como build arg al `frontend/Dockerfile` (Vite resuelve las env vars en
+  **build time**, no en runtime) apuntando a `http://localhost:8080/api`, el puerto que
+  `docker-compose.yml` publica del backend.
+- El backend habilita CORS para `http://localhost:3000` (variable `Frontend__Origin`), que es el
+  puerto publicado del frontend.
+- `frontend/nginx.conf` no tiene bloque `location /api/`: no hace falta, todas las llamadas salen
+  directo del browser al backend. Sí tiene el `try_files` para el fallback de `react-router`
+  (`BrowserRouter`), porque eso es necesario sea cual sea el camino elegido.
+
+El costo del camino (b), tal como advierte la guía, es que la URL del backend queda fija en la imagen
+del frontend: cambiar de entorno implica rebuildear con otro `VITE_API_URL`. Se acepta ese costo
+porque es consistente con lo que ya tenía la app.
+
 ## Migraciones automáticas al arrancar
 
 `Program.cs` corre `db.Database.Migrate()` al iniciar la aplicación, para que `dotnet run` funcione
