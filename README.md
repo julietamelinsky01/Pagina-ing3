@@ -13,6 +13,40 @@ Sistema de gestión de empleados y turnos para una cafetería (franquicia Havann
 Ver [decisiones.md](decisiones.md) para las decisiones técnicas (motor de base de datos, librería de
 UI, autenticación) y la lista de reglas de negocio implementadas.
 
+## Levantar todo con Docker (recomendado)
+
+Único requisito: [Docker](https://docs.docker.com/get-docker/) instalado y corriendo. No hace falta
+.NET, Node ni Postgres en la máquina.
+
+```bash
+git clone https://github.com/julietamelinsky01/Pagina-ing3.git
+cd Pagina-ing3
+cp .env.example .env
+docker compose up -d --build
+```
+
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8080
+- Usuario admin seedeado: `admin` / `Havanna2026!`
+
+```bash
+docker compose down       # apaga todo, conserva los datos de la BD (volumen db_data)
+docker compose down -v    # apaga todo y borra también la BD
+```
+
+### Usar las imágenes ya publicadas, sin buildear nada local
+
+`docker-compose.registry.yml` levanta el mismo sistema bajando las imágenes publicadas en GitHub
+Container Registry en vez de compilarlas:
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.registry.yml up -d
+```
+
+Las secciones de abajo (`Requisitos`, `Backend`, `Frontend`, `Levantar Postgres`) son para desarrollo
+local sin Docker — no hacen falta si usás alguno de los dos compose de arriba.
+
 ## Requisitos
 
 - [.NET SDK 8](https://dotnet.microsoft.com/download/dotnet/8.0)
