@@ -1,87 +1,32 @@
 # Decisiones técnicas
 
-Este proyecto es la base de la materia durante todo el semestre (TP2 en adelante), así que estas
-decisiones están tomadas pensando en esa continuidad, no solo en que el CRUD funcione hoy.
+Este archivo reúne las decisiones tomadas en los trabajos prácticos de Ingeniería de Software 3.
 
-## TP1
+## TP1 — Git colaborativo
 
-### Base de datos: PostgreSQL (no SQL Server)
+### 1. Por qué Git no pudo resolver el conflicto solo
 
-El spec original dejaba esto "a definir", con SQL Server como opción por defecto. Se descartó porque:
+Git no pudo resolver el conflicto automáticamente porque las dos ramas habían modificado la misma línea del README de maneras diferentes: la rama A cambió el título a "versión A" y la rama B a "versión B".
 
-- SQL Server no corre nativamente en macOS (haría falta Docker + una imagen especial tipo
-  `azure-sql-edge`), mientras que Postgres se levanta en minutos con un `docker run` simple o con
-  Homebrew.
-- Es el motor que mejor cumple el criterio de la cátedra "que puedan ejecutarla hoy" y "sin
-  dependencias exóticas".
-- EF Core lo soporta igual de bien vía `Npgsql.EntityFrameworkCore.PostgreSQL`, sin ninguna
-  desventaja funcional para este proyecto.
+Git detectó que existían dos cambios incompatibles sobre la misma línea, pero no podía determinar cuál de las dos versiones era la correcta. Por ese motivo fue necesario resolver el conflicto manualmente, eligiendo el contenido que debía quedar.
 
-### UI library: MUI
+El conflicto se podría haber evitado si las ramas hubieran modificado partes distintas del archivo o si se hubiera integrado una de las ramas antes de realizar el cambio conflictivo en la otra.
 
-Se evaluó contra Bootstrap (react-bootstrap). Se eligió MUI porque sus componentes de tabla, formularios
-y diálogos modales encajan directo con las pantallas de CRUD y el calendario semanal, sin tener que
-armar mucho a mano.
+### 2. Problemas encontrados y cómo los solucioné
 
-### Autenticación: tabla `Usuario` en base de datos
+- **"Require approvals" activado por defecto:** al configurar la protección de `main`, GitHub solicitaba una aprobación para poder mergear. Como el TP era individual, no podía aprobar mi propio Pull Request. Se resolvió desactivando ese requisito y manteniendo la obligación de ingresar los cambios mediante Pull Request.
 
-Se evaluó contra una credencial fija en `appsettings.json`. Se eligió la tabla en base de datos
-(username + hash BCrypt) porque:
+- **Nombres automáticos de ramas:** al crear algunas ramas desde la interfaz web de GitHub se generaron nombres automáticos, en lugar de la convención `feature/...` sugerida. Verifiqué que esto no afectaba el funcionamiento del flujo de trabajo.
 
-- Es más representativo de un sistema real con JWT (el login valida contra un registro persistido,
-  no una constante).
-- El hash se generó una sola vez con `BCrypt.Net.BCrypt.HashPassword` y quedó fijo en el seed de la
-  migración (`HasData`), para que la migración sea reproducible — no se genera un hash nuevo (con
-  salt distinto) cada vez que EF recalcula el modelo.
+- **Terminal que parecía trabada:** al pegar varios comandos juntos, en algunos casos la terminal quedaba esperando. Lo solucioné cancelando con `Ctrl+C` y ejecutando los comandos individualmente.
 
-### Connection string parametrizable por variable de entorno
+- **Conflicto intencional entre ramas:** dos ramas modificaron la misma línea del README. GitHub detectó el conflicto y bloqueó el merge hasta que fue resuelto manualmente.
 
-`appsettings.json` solo tiene un valor de desarrollo. `Program.cs` lo lee vía
-`builder.Configuration.GetConnectionString(...)`, que ASP.NET Core resuelve por la convención
-`ConnectionStrings__DefaultConnection` como variable de entorno — sin tocar código ni el archivo de
-configuración. Esto es intencional pensando en el TP2 (la base pasa a vivir en un contenedor, cambia
-el host) y el TP6 (la misma app apunta a bases distintas para QA y producción). Lo mismo aplica a la
-clave JWT (`Jwt__Key`) y al origen permitido por CORS (`Frontend__Origin`).
+### 3. Declaración de uso de IA
 
-### Reglas de negocio agregadas más allá del CRUD
+Utilicé Claude (Anthropic) como asistente durante el desarrollo del TP1 para guiarme paso a paso en tareas como la configuración de la protección de rama, la creación de Pull Requests, la generación del conflicto, su resolución y la creación del tag y la release.
 
-El spec funcional original (gestión de empleados y turnos) es básicamente CRUD puro. La guía de la
-cátedra pide margen para llegar a 8 tests de backend y 4 de frontend en el TP5, lo que requiere unas
-4-6 reglas de negocio reales (no solo altas/bajas/modificaciones). Se agregaron ahora, en el TP2/TP3,
-para no llegar al TP5 sin nada que testear:
-
-**Backend** (`Services/EmpleadoService.cs`, `Services/AsignacionTurnoService.cs`,
-`Services/TipoTurnoService.cs`, `Services/TurnoHorasCalculator.cs`):
-
-1. **DNI único por empleado** — validación + índice único en la base.
-2. **No duplicar asignación** (mismo empleado + tipo de turno + fecha) — índice único + chequeo
-   explícito antes del insert, con mensaje de error claro.
-3. **No asignar turnos a empleados inactivos** — restricción de negocio.
-4. **Cálculo de horas por turno con turnos que cruzan la medianoche** (ej. Noche 22:00–06:00 = 8hs,
-   no un número negativo) — caso borde real en `TurnoHorasCalculator.CalcularHoras`.
-5. **La fecha de ingreso de un empleado no puede ser futura** — validación.
-6. **Dar de baja a un empleado con asignaciones futuras** se permite, pero el service cuenta cuántas
-   tiene y lo informa en la respuesta (transición de estado con efecto colateral verificable).
-7. **No se puede eliminar un tipo de turno con asignaciones asociadas** — restricción de integridad,
-   surge naturalmente de permitir el CRUD completo de `TipoTurno`.
-
-**Frontend** (`pages/EmpleadoForm.jsx`, `pages/AsignacionForm.jsx`, `pages/ReporteSemanal.jsx`):
-
-1. El formulario de empleado deshabilita "Guardar" si faltan campos requeridos o el DNI no matchea
-   `^\d{7,8}$` — validación antes de habilitar el submit, no solo al recibir el error del backend.
-2. El formulario de nueva asignación en el calendario chequea contra las asignaciones ya cargadas de
-   la semana visible y avisa/bloquea si la combinación empleado+turno+fecha ya existe, antes de
-   pegarle a la API.
-3. El reporte semanal recalcula el total de horas por empleado en el cliente (`useMemo` sobre las
-   asignaciones cargadas) cada vez que cambia el rango de fechas seleccionado — no es un valor
-   estático que devuelve el backend.
-
-### Migraciones automáticas al arrancar
-
-`Program.cs` corre `db.Database.Migrate()` al iniciar la aplicación, para que `dotnet run` funcione
-de punta a punta sin pasos manuales adicionales la primera vez que alguien clona el repo. Es una
-concesión pensada para friction-less local dev en un proyecto académico; en un pipeline de CI/CD real
-(TP6) esto normalmente se separaría en un paso de deploy explícito.
+Las indicaciones fueron verificadas durante el trabajo práctico ejecutando los comandos y comprobando sus resultados en Git y GitHub. Las evidencias del push rechazado, el conflicto, los marcadores de conflicto y la release publicada quedaron registradas en `evidencias.md`.
 
 ## TP2 — Contenedores
 
@@ -168,3 +113,4 @@ API real, y se corrió la prueba de persistencia dos veces (`down` sin `-v` y co
 empleado real para descartar falsos positivos por datos de seed — todo documentado con salidas reales
 en `evidencias.md`, no simuladas. Lo que no fue asistido por IA es todo lo anterior a este TP: el
 dominio, las reglas de negocio, la elección de stack y la app en sí.
+
