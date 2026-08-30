@@ -3,7 +3,9 @@
 Este proyecto es la base de la materia durante todo el semestre (TP2 en adelante), así que estas
 decisiones están tomadas pensando en esa continuidad, no solo en que el CRUD funcione hoy.
 
-## Base de datos: PostgreSQL (no SQL Server)
+## TP1
+
+### Base de datos: PostgreSQL (no SQL Server)
 
 El spec original dejaba esto "a definir", con SQL Server como opción por defecto. Se descartó porque:
 
@@ -15,13 +17,13 @@ El spec original dejaba esto "a definir", con SQL Server como opción por defect
 - EF Core lo soporta igual de bien vía `Npgsql.EntityFrameworkCore.PostgreSQL`, sin ninguna
   desventaja funcional para este proyecto.
 
-## UI library: MUI
+### UI library: MUI
 
 Se evaluó contra Bootstrap (react-bootstrap). Se eligió MUI porque sus componentes de tabla, formularios
 y diálogos modales encajan directo con las pantallas de CRUD y el calendario semanal, sin tener que
 armar mucho a mano.
 
-## Autenticación: tabla `Usuario` en base de datos
+### Autenticación: tabla `Usuario` en base de datos
 
 Se evaluó contra una credencial fija en `appsettings.json`. Se eligió la tabla en base de datos
 (username + hash BCrypt) porque:
@@ -32,7 +34,7 @@ Se evaluó contra una credencial fija en `appsettings.json`. Se eligió la tabla
   migración (`HasData`), para que la migración sea reproducible — no se genera un hash nuevo (con
   salt distinto) cada vez que EF recalcula el modelo.
 
-## Connection string parametrizable por variable de entorno
+### Connection string parametrizable por variable de entorno
 
 `appsettings.json` solo tiene un valor de desarrollo. `Program.cs` lo lee vía
 `builder.Configuration.GetConnectionString(...)`, que ASP.NET Core resuelve por la convención
@@ -41,7 +43,7 @@ configuración. Esto es intencional pensando en el TP2 (la base pasa a vivir en 
 el host) y el TP6 (la misma app apunta a bases distintas para QA y producción). Lo mismo aplica a la
 clave JWT (`Jwt__Key`) y al origen permitido por CORS (`Frontend__Origin`).
 
-## Reglas de negocio agregadas más allá del CRUD
+### Reglas de negocio agregadas más allá del CRUD
 
 El spec funcional original (gestión de empleados y turnos) es básicamente CRUD puro. La guía de la
 cátedra pide margen para llegar a 8 tests de backend y 4 de frontend en el TP5, lo que requiere unas
@@ -74,7 +76,7 @@ para no llegar al TP5 sin nada que testear:
    asignaciones cargadas) cada vez que cambia el rango de fechas seleccionado — no es un valor
    estático que devuelve el backend.
 
-## Migraciones automáticas al arrancar
+### Migraciones automáticas al arrancar
 
 `Program.cs` corre `db.Database.Migrate()` al iniciar la aplicación, para que `dotnet run` funcione
 de punta a punta sin pasos manuales adicionales la primera vez que alguien clona el repo. Es una
