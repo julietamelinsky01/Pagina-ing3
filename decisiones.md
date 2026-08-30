@@ -1,9 +1,36 @@
 # Decisiones técnicas
 
-Este proyecto es la base de la materia durante todo el semestre (TP2 en adelante), así que estas
-decisiones están tomadas pensando en esa continuidad, no solo en que el CRUD funcione hoy.
+Este archivo reúne las decisiones tomadas en los trabajos prácticos de Ingeniería de Software 3.
 
-## TP1
+## TP1 — Git colaborativo
+
+### 1. Por qué Git no pudo resolver el conflicto solo
+
+Git no pudo resolver el conflicto automáticamente porque las dos ramas habían modificado la misma línea del README de maneras diferentes: la rama A cambió el título a "versión A" y la rama B a "versión B".
+
+Git detectó que existían dos cambios incompatibles sobre la misma línea, pero no podía determinar cuál de las dos versiones era la correcta. Por ese motivo fue necesario resolver el conflicto manualmente, eligiendo el contenido que debía quedar.
+
+El conflicto se podría haber evitado si las ramas hubieran modificado partes distintas del archivo o si se hubiera integrado una de las ramas antes de realizar el cambio conflictivo en la otra.
+
+### 2. Problemas encontrados y cómo los solucioné
+
+- **"Require approvals" activado por defecto:** al configurar la protección de `main`, GitHub solicitaba una aprobación para poder mergear. Como el TP era individual, no podía aprobar mi propio Pull Request. Se resolvió desactivando ese requisito y manteniendo la obligación de ingresar los cambios mediante Pull Request.
+
+- **Nombres automáticos de ramas:** al crear algunas ramas desde la interfaz web de GitHub se generaron nombres automáticos, en lugar de la convención `feature/...` sugerida. Verifiqué que esto no afectaba el funcionamiento del flujo de trabajo.
+
+- **Terminal que parecía trabada:** al pegar varios comandos juntos, en algunos casos la terminal quedaba esperando. Lo solucioné cancelando con `Ctrl+C` y ejecutando los comandos individualmente.
+
+- **Conflicto intencional entre ramas:** dos ramas modificaron la misma línea del README. GitHub detectó el conflicto y bloqueó el merge hasta que fue resuelto manualmente.
+
+### 3. Declaración de uso de IA
+
+Utilicé Claude (Anthropic) como asistente durante el desarrollo del TP1 para guiarme paso a paso en tareas como la configuración de la protección de rama, la creación de Pull Requests, la generación del conflicto, su resolución y la creación del tag y la release.
+
+Las indicaciones fueron verificadas durante el trabajo práctico ejecutando los comandos y comprobando sus resultados en Git y GitHub. Las evidencias del push rechazado, el conflicto, los marcadores de conflicto y la release publicada quedaron registradas en `evidencias.md`.
+
+## TP2 — Contenedores
+
+### Decisiones de la app base
 
 ### Base de datos: PostgreSQL (no SQL Server)
 
@@ -83,16 +110,15 @@ de punta a punta sin pasos manuales adicionales la primera vez que alguien clona
 concesión pensada para friction-less local dev en un proyecto académico; en un pipeline de CI/CD real
 (TP6) esto normalmente se separaría en un paso de deploy explícito.
 
-## TP2 — Contenedores
-
 ### Qué app y por qué
 
 La app es la misma descripta arriba (Las Melis: .NET 8 + React/Vite + PostgreSQL), elegida contra los
 criterios del §3.3 de la guía: buildea y corre local sin magia (probada antes de comprometerse),
 tiene superficie para llegar a los 8+4 tests del TP5 (ver "Reglas de negocio" arriba), es un CRUD +
 calendario acotado (3 pantallas principales) y es un dominio que entiendo lo suficiente como para
-modificarlo en vivo en el Integrador. Vive en este mismo repo (el del TP1, con sus protecciones), no
-en uno nuevo.
+modificarlo en vivo en el Integrador. La app se desarrolló inicialmente en este repositorio y, para
+unificar el repositorio oficial de la materia, se migraron aquí las decisiones y evidencias del TP1
+y se recrearán sus protecciones según lo indicado por la guía.
 
 ### Decisiones de contenerización
 
@@ -168,3 +194,4 @@ API real, y se corrió la prueba de persistencia dos veces (`down` sin `-v` y co
 empleado real para descartar falsos positivos por datos de seed — todo documentado con salidas reales
 en `evidencias.md`, no simuladas. Lo que no fue asistido por IA es todo lo anterior a este TP: el
 dominio, las reglas de negocio, la elección de stack y la app en sí.
+

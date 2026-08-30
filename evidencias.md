@@ -1,4 +1,34 @@
-# Evidencias — TP2 (Docker y Compose)
+# Evidencias
+
+## TP1 — Git colaborativo
+
+### 1. Push directo a main rechazado
+
+![Push rechazado](img/01-push-rechazado.png)
+
+GitHub rechazó el push directo porque la rama `main` estaba protegida y los cambios debían ingresar mediante Pull Request.
+
+### 2. Conflicto en Pull Request
+
+![Aviso de conflicto](img/02-conflicto-pr.png)
+
+Al intentar integrar la segunda rama, GitHub detectó que ambas ramas habían modificado la misma línea del README y bloqueó el merge hasta resolver el conflicto.
+
+### 3. Marcadores del conflicto
+
+![Marcadores del conflicto](img/03-marcadores-conflicto.png)
+
+Los marcadores `<<<<<<<`, `=======` y `>>>>>>>` muestran las dos versiones incompatibles que Git no podía resolver automáticamente.
+
+### 4. Release v1.0.0 publicada
+
+![Release v1.0.0](img/04-release-publicada.png)
+
+La release `v1.0.0` quedó publicada después de resolver el conflicto e integrar los cambios.
+
+---
+
+## TP2 — Docker y Compose
 
 ## 1. Build y arranque
 
