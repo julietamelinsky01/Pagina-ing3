@@ -12,7 +12,7 @@ GitHub rechazó el push directo porque la rama `main` estaba protegida y los cam
 
 ![Aviso de conflicto](img/02-conflicto-pr.png)
 
-Al intentar integrar la segunda rama, GitHub detectó que ambas ramas habían modificado la misma línea del README y bloqueó el merge hasta resolver el conflicto.
+Al intentar integrar la segunda rama, GitHub detectó que ambas ramas habían modificado la misma línea del archivo `conflicto-tp1.txt` y bloqueó el merge hasta resolver el conflicto.
 
 ### 3. Marcadores del conflicto
 
