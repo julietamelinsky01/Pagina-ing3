@@ -207,7 +207,7 @@ Se configuraron dos vistas:
 - Una vista de tabla para visualizar los ítems y su jerarquía.
 - Una vista de tablero con los estados `Todo`, `In Progress` y `Done`.
 
-También se creó el campo de iteración `Sprint` y se configuró `Sprint 1` para el período del 30 de agosto al 12 de septiembre.
+También se creó el campo de iteración `Sprint` y se configuró `Sprint 1` para el período del 30 de agosto al 12 de septiembre. Se eligió una duración de dos semanas porque permite agrupar una cantidad razonable de trabajo y se alinea mejor con el ritmo de entregas de la materia, evitando tanto sprints demasiado cortos como períodos demasiado largos sin revisión.
 
 ### Jerarquía de trabajo
 
@@ -256,7 +256,17 @@ Se decidió utilizar GitHub Projects porque permite mantener la planificación y
 
 Se utilizó una iteración de dos semanas para representar el sprint y un tablero simple de tres estados (`Todo`, `In Progress`, `Done`) para visualizar el avance.
 
+En la columna `In Progress` se configuró un límite WIP de 2 elementos. Como el trabajo es individual, se tomó como criterio una persona + 1, permitiendo como máximo dos tareas simultáneas en progreso. El objetivo es evitar comenzar demasiadas tareas al mismo tiempo y favorecer que el trabajo iniciado se termine antes de incorporar uno nuevo.
+
 La Task #10 no se marcó como completada porque actualmente el repositorio no posee un proyecto de tests que genere un reporte real. Se prefirió mantener la tarea pendiente en lugar de publicar un artefacto ficticio únicamente para completar el tablero.
+
+### Diagnóstico de una historia mal escrita
+
+Una historia como `Como desarrollador quiero crear la tabla usuarios` está mal formulada como historia de usuario porque describe directamente una tarea técnica y no expresa qué usuario obtiene valor ni cuál es el beneficio esperado.
+
+Una formulación más adecuada sería: `Como administrador quiero registrar usuarios en el sistema para poder gestionar quiénes tienen acceso a la aplicación`.
+
+De esta manera la historia expresa actor, necesidad y beneficio, mientras que `crear la tabla usuarios` quedaría como una tarea técnica necesaria para implementar esa historia.
 
 ### Uso de IA
 
