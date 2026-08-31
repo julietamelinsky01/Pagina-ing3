@@ -195,3 +195,71 @@ empleado real para descartar falsos positivos por datos de seed — todo documen
 en `evidencias.md`, no simuladas. Lo que no fue asistido por IA es todo lo anterior a este TP: el
 dominio, las reglas de negocio, la elección de stack y la app en sí.
 
+
+## TP3 — Planificación y trazabilidad
+
+### Herramienta de planificación
+
+Para organizar el trabajo se utilizó GitHub Projects, mediante el proyecto `IngSoft3 - Las Melis DevOps`.
+
+Se configuraron dos vistas:
+
+- Una vista de tabla para visualizar los ítems y su jerarquía.
+- Una vista de tablero con los estados `Todo`, `In Progress` y `Done`.
+
+También se creó el campo de iteración `Sprint` y se configuró `Sprint 1` para el período del 30 de agosto al 12 de septiembre.
+
+### Jerarquía de trabajo
+
+Se utilizó una estructura de Epic → Story → Task para representar distintos niveles de planificación.
+
+La jerarquía implementada fue:
+
+- Epic #7: `Pipeline DevOps completo para Las Melis`
+  - Story #8: `CI: build y tests automáticos en cada PR`
+    - Task #9: `Escribir el workflow de build y tests`
+    - Task #10: `Publicar el reporte de tests como artefacto`
+
+También se agregó el Bug #11: `El frontend carga sin datos si el backend todavía no responde`, para representar trabajo correctivo dentro del backlog.
+
+### Sprint y estados
+
+Los ítems del backlog fueron incorporados a `Sprint 1`.
+
+La Task #9 se movió de `Todo` a `In Progress` al comenzar su implementación y posteriormente a `Done` al completarse mediante Pull Request.
+
+La Task #10 permanece en `Todo`, ya que la publicación del reporte como artefacto depende de disponer primero de tests que generen un reporte real.
+
+### Trazabilidad entre planificación y código
+
+Para la Task #9 se creó desde la propia Issue la rama:
+
+`9-escribir-el-workflow-de-build-y-tests`
+
+En esa rama se agregó el archivo `.github/workflows/ci.yml`, con un workflow inicial de GitHub Actions ejecutado ante Pull Requests hacia `main`.
+
+El cambio se registró en el commit:
+
+`be5a9c5` — `ci: agregar esqueleto del workflow de build y tests`
+
+Luego se creó el Pull Request #12, incluyendo `Closes #9` en su descripción.
+
+El Pull Request ejecutó correctamente el workflow de GitHub Actions, fue integrado a `main` y GitHub cerró automáticamente la Task #9 y la movió a `Done`.
+
+De esta manera quedó establecida la trazabilidad:
+
+Epic #7 → Story #8 → Task #9 → Branch → Commit → Pull Request #12 → `main`.
+
+### Decisiones tomadas
+
+Se decidió utilizar GitHub Projects porque permite mantener la planificación y la implementación dentro de la misma plataforma, vinculando Issues, jerarquías, ramas y Pull Requests.
+
+Se utilizó una iteración de dos semanas para representar el sprint y un tablero simple de tres estados (`Todo`, `In Progress`, `Done`) para visualizar el avance.
+
+La Task #10 no se marcó como completada porque actualmente el repositorio no posee un proyecto de tests que genere un reporte real. Se prefirió mantener la tarea pendiente en lugar de publicar un artefacto ficticio únicamente para completar el tablero.
+
+### Uso de IA
+
+Se utilizó ChatGPT (OpenAI) como asistente durante el TP3 para guiar la configuración del GitHub Project, la jerarquía Epic → Story → Task, la creación y vinculación de ramas e Issues, el flujo mediante Pull Request y la documentación de las decisiones tomadas.
+
+Las indicaciones se verificaron directamente en Git y GitHub durante el desarrollo. La Task #9 fue implementada mediante una rama vinculada, un commit y el Pull Request #12, y su cierre automático permitió comprobar la trazabilidad entre la planificación y el código.
