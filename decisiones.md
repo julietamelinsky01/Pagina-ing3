@@ -6,7 +6,7 @@ Este archivo reúne las decisiones tomadas en los trabajos prácticos de Ingenie
 
 ### 1. Por qué Git no pudo resolver el conflicto solo
 
-Git no pudo resolver el conflicto automáticamente porque las dos ramas habían modificado la misma línea del README de maneras diferentes: la rama A cambió el título a "versión A" y la rama B a "versión B".
+Git no pudo resolver el conflicto automáticamente porque las dos ramas habían modificado la misma línea del archivo `conflicto-tp1.txt` de maneras diferentes: la rama A escribió "Versión A del conflicto del TP1" y la rama B escribió "Versión B del conflicto del TP1".
 
 Git detectó que existían dos cambios incompatibles sobre la misma línea, pero no podía determinar cuál de las dos versiones era la correcta. Por ese motivo fue necesario resolver el conflicto manualmente, eligiendo el contenido que debía quedar.
 
@@ -20,7 +20,7 @@ El conflicto se podría haber evitado si las ramas hubieran modificado partes di
 
 - **Terminal que parecía trabada:** al pegar varios comandos juntos, en algunos casos la terminal quedaba esperando. Lo solucioné cancelando con `Ctrl+C` y ejecutando los comandos individualmente.
 
-- **Conflicto intencional entre ramas:** dos ramas modificaron la misma línea del README. GitHub detectó el conflicto y bloqueó el merge hasta que fue resuelto manualmente.
+- **Conflicto intencional entre ramas:** dos ramas modificaron la misma línea del archivo `conflicto-tp1.txt`. GitHub detectó el conflicto y bloqueó el merge hasta que fue resuelto manualmente.
 
 ### 3. Declaración de uso de IA
 
@@ -118,7 +118,7 @@ tiene superficie para llegar a los 8+4 tests del TP5 (ver "Reglas de negocio" ar
 calendario acotado (3 pantallas principales) y es un dominio que entiendo lo suficiente como para
 modificarlo en vivo en el Integrador. La app se desarrolló inicialmente en este repositorio y, para
 unificar el repositorio oficial de la materia, se migraron aquí las decisiones y evidencias del TP1
-y se recrearán sus protecciones según lo indicado por la guía.
+y se recrearon sus protecciones según lo indicado por la guía.
 
 ### Decisiones de contenerización
 
