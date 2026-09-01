@@ -273,3 +273,109 @@ De esta manera la historia expresa actor, necesidad y beneficio, mientras que `c
 Se utilizó ChatGPT (OpenAI) como asistente durante el TP3 para guiar la configuración del GitHub Project, la jerarquía Epic → Story → Task, la creación y vinculación de ramas e Issues, el flujo mediante Pull Request y la documentación de las decisiones tomadas.
 
 Las indicaciones se verificaron directamente en Git y GitHub durante el desarrollo. La Task #9 fue implementada mediante una rama vinculada, un commit y el Pull Request #12, y su cierre automático permitió comprobar la trazabilidad entre la planificación y el código.
+
+## TP4 — Integración Continua: Pipelines as Code
+
+### Implementación de la pipeline
+
+Para implementar Integración Continua se utilizó GitHub Actions mediante el archivo `.github/workflows/ci.yml`.
+
+El workflow se configuró para ejecutarse automáticamente ante Pull Requests hacia `main` y también ante pushes a `main`. De esta manera, los cambios propuestos son verificados antes de integrarse y el estado de la rama principal también queda validado después de cada merge.
+
+En este TP la pipeline verifica el build de la aplicación. No se incorporaron tests ni reportes de tests, ya que esa etapa corresponde al TP5.
+
+### Jobs de backend y frontend
+
+La pipeline se dividió en dos jobs independientes:
+
+- `build-backend`
+- `build-frontend`
+
+Se decidió separar ambos componentes porque el backend y el frontend poseen procesos de construcción y Dockerfiles diferentes.
+
+Al no existir una dependencia entre los jobs, GitHub Actions puede ejecutarlos en paralelo. Esto permite detectar de forma independiente qué componente falla y evita esperar innecesariamente a que termine un build para comenzar el otro.
+
+Cada job utiliza un runner `ubuntu-latest`, obtiene el código mediante `actions/checkout` y construye la imagen correspondiente utilizando `docker/build-push-action`.
+
+### Uso de los Dockerfiles del TP2
+
+Para validar la construcción de la aplicación se decidió reutilizar los Dockerfiles definidos en el TP2:
+
+- `./backend/Dockerfile`
+- `./frontend/Dockerfile`
+
+De esta manera, la pipeline verifica exactamente el mismo mecanismo de construcción utilizado para contenerizar la aplicación.
+
+Se prefirió esta alternativa frente a ejecutar directamente comandos como `dotnet publish` o `npm run build` en el workflow, porque mantener una única definición de build reduce el riesgo de que la construcción local mediante Docker y la construcción realizada por CI evolucionen de forma diferente.
+
+### Caché de capas de Docker
+
+Se configuró Docker Buildx junto con el caché provisto por GitHub Actions mediante:
+
+`cache-from: type=gha`
+
+y
+
+`cache-to: type=gha,mode=max`
+
+Se utilizaron scopes separados (`backend` y `frontend`) para evitar mezclar las capas correspondientes a ambas imágenes.
+
+La primera ejecución construye las capas necesarias y las almacena en caché. En ejecuciones posteriores, las capas que no cambiaron pueden reutilizarse.
+
+Para comprobarlo se realizó una segunda corrida de la pipeline mediante el commit `ci: segunda corrida para ver el cache`. En los logs del backend se observaron múltiples etapas marcadas como `CACHED`.
+
+El caché es únicamente una optimización de rendimiento. Si se elimina o no está disponible, la pipeline debe seguir funcionando correctamente; simplemente deberá reconstruir las capas y tardará más tiempo.
+
+### Quality gate sobre main
+
+La protección de la rama `main` se configuró para exigir que los siguientes status checks finalicen correctamente antes de permitir un merge:
+
+- `build-backend`
+- `build-frontend`
+
+También se habilitó la opción que exige que la rama del Pull Request se encuentre actualizada respecto de `main`.
+
+De esta manera, la pipeline deja de ser solamente informativa y pasa a funcionar como un quality gate: un cambio que no construye correctamente no puede incorporarse a la rama principal.
+
+### Demostración del bloqueo y recuperación
+
+Para verificar el funcionamiento real del gate se creó el Pull Request #16 desde la rama `feature/demo-gate`.
+
+Se introdujo intencionalmente la línea `using NoExiste;` en `backend/LasMelis.Api/Program.cs`. Esto provocó un error de compilación durante `dotnet publish`.
+
+Como resultado:
+
+- `build-backend` falló.
+- `build-frontend` finalizó correctamente.
+- GitHub marcó ambos checks como requeridos.
+- El merge quedó bloqueado mientras el backend permanecía en rojo.
+
+Después de comprobar el bloqueo se eliminó el error mediante el commit `fix: saca el using que no existe`.
+
+La pipeline volvió a ejecutarse automáticamente y ambos jobs finalizaron correctamente. Recién entonces el Pull Request quedó habilitado para mergearse.
+
+De esta forma se comprobó el ciclo completo:
+
+`cambio incorrecto → pipeline roja → merge bloqueado → corrección → pipeline verde → merge habilitado`.
+
+### Badge de estado
+
+Se agregó al `README.md` el badge oficial del workflow `CI`.
+
+El badge permite visualizar directamente desde la página principal del repositorio el estado actual de la Integración Continua. Con la pipeline funcionando correctamente se muestra el estado `CI passing`.
+
+### Problemas encontrados y cómo se resolvieron
+
+- El repositorio ya contaba con un workflow mínimo creado durante el TP3. Para el TP4 se reemplazó ese esqueleto por los jobs reales `build-backend` y `build-frontend`.
+
+- Se verificó el funcionamiento del caché mediante una segunda ejecución sin cambios relevantes, comprobando en los logs que Docker reutilizaba capas marcadas como `CACHED`.
+
+- Para comprobar el quality gate se introdujo deliberadamente un error de compilación. Esto permitió verificar que no alcanza con tener una pipeline configurada: para proteger efectivamente `main`, sus checks deben configurarse como requeridos en las reglas de protección de la rama.
+
+- Al incorporar el badge se encontraron dificultades al copiar su Markdown mediante la terminal y el chat, ya que el enlace se deformaba. Se resolvió utilizando directamente el Markdown generado por GitHub mediante la opción `Create status badge`.
+
+### Uso de IA
+
+Se utilizó ChatGPT (OpenAI) como asistente durante el TP4 para guiar la implementación progresiva del workflow, la incorporación del build de backend y frontend, la configuración del caché de Docker, la protección de `main`, la demostración controlada del quality gate y la incorporación del badge de CI.
+
+Las indicaciones fueron verificadas directamente mediante Git, Docker, GitHub Actions y las reglas de protección del repositorio. Se comprobó el uso efectivo del caché observando etapas `CACHED` en los logs y el funcionamiento del gate mediante un Pull Request que pasó de un build fallido y merge bloqueado a checks exitosos y merge habilitado.
