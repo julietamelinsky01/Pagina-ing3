@@ -1,3 +1,5 @@
+[![CI](https://github.com/julietamelinsky01/Pagina-ing3/actions/workflows/ci.yml/badge.svg)](https://github.com/julietamelinsky01/Pagina-ing3/actions/workflows/ci.yml)
+
 # Las Melis — Gestión de Empleados y Turnos
 
 Sistema de gestión de empleados y turnos para una cafetería (franquicia Havanna). Backend en .NET 8
