@@ -445,28 +445,26 @@ Abrí el reporte de cobertura del backend y busqué ramas de código a medias (n
 
 1. **Qué línea es:** `var asignacion = await _repository.GetByIdAsync(id) ?? throw ...` — el `??` abre dos caminos: la asignación existe (cubierto) y no existe (sin cubrir).
 2. **Qué entrada la recorrería:** `UpdateAsync(999, dto)` con el repositorio devolviendo `null` → tiene que lanzar `NotFoundAppException` y no llamar a `UpdateAsync` del repositorio.
-3. **Qué decidí:** *(completar con tu decisión — las tres respuestas valen, incluida "no lo agregué"; lo que se evalúa es que miraste el código)*. Mi lectura: es el mismo patrón `?? throw` que ya verifican `GetByIdAsync` y `DeleteAsync` en ese servicio, así que el riesgo es bajo, pero el test cuesta cinco líneas, así que lo agregaría si ese `UpdateAsync` empezara a tener más lógica.
+3. **Qué decidí:** **no agregar el test por ahora.** Es el mismo patrón `?? throw new NotFoundAppException(...)` que ya verifican `GetByIdAsync` y `DeleteAsync` en ese mismo servicio, así que el riesgo de que esté mal escrito es bajo. Lo agregaría si ese `UpdateAsync` empezara a tener más lógica antes de la validación, porque ahí el camino "no existe" dejaría de ser trivial.
 
 (La rama de `TipoTurnoService.UpdateAsync`, línea 45, quedó en el mismo estado y por el mismo motivo.)
 
 ### Mi Pull Request bloqueado por cobertura
 
-*(completar después de la demostración — §3.5 de la guía)*
-
-- **PR que cuenta la historia (mergeado):** `<URL del PR>` — rojo por cobertura → los tests que faltaban → verde → merge.
-- **PR que prueba el freno (abierto y en rojo hasta la defensa):** `<URL del PR>`.
-- **Corrida roja por umbral, con el número en el log:** `<URL de la corrida>`.
-- Qué check se puso en rojo y en qué métrica: `<build-frontend / build-backend>`, `<líneas / ramas>`, con vitest 5.0.3 / coverlet.msbuild 10.1.0.
-- Qué escribí para arreglarlo: `<tests por cada camino del código nuevo>`.
+- **PR que cuenta la historia (mergeado):** https://github.com/julietamelinsky01/Pagina-ing3/pull/19 — rojo por cobertura → los tests que faltaban → verde → merge. Agregué `src/utils/carga.js` (`nivelDeCarga` y `avisoDeCarga`: dos funciones con una cadena de `if`) sin un solo test: compila perfecto y los 37 tests pasan, pero la cobertura baja.
+- **PR que prueba el freno (abierto y en rojo hasta la defensa):** https://github.com/julietamelinsky01/Pagina-ing3/pull/20 — agrega `src/utils/turnos.js` (`etiquetaDeTurno`) sin tests, desde `main`, después del merge del primero.
+- **Corrida roja por umbral, con el número en el log:** https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/37683090184
+- **Qué check se puso en rojo y en qué métrica:** `build-frontend`, en el paso "Correr los tests del frontend con coverage", con vitest 5.0.3. El log dice `ERROR: Coverage for lines (66.12%) does not meet global threshold (90%)` y `ERROR: Coverage for branches (55.55%) does not meet global threshold (90%)`: frenó por **líneas y por ramas a la vez**, con los 37 tests en verde. `build-backend` quedó en verde.
+- **Qué escribí para arreglarlo:** `src/utils/carga.test.js`, con un test por cada camino que declara `nivelDeCarga` (sin datos con `it.each` para nulo / indefinido / NaN, inválido, sin turnos, parcial, normal, completa, exceso) y los bordes en 20, 40 y 48 horas, más cada aviso de `avisoDeCarga` (exceso, jornada completa, sin turnos y el caso sin aviso). Con eso la corrida pasó a verde: https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/37683900655
 
 Este freno es distinto del del TP4: allá el job se ponía en rojo porque algo **no compilaba**; acá compila perfecto y los tests pasan todos, y el merge se bloquea igual porque un número que yo elegí no se cumple. Lo que deja pasar igual: que el requisito esté mal entendido (los tests custodian lo que yo entendí) y todo lo que no está medido (UI, controllers, repositorios).
 
 ### Enlaces que prueban cada decisión
 
-- Resumen de cobertura y reporte descargable: `<URL de la corrida verde en main — …/actions/runs/<id>>`
-- Corrida roja por umbral: `<URL de la corrida roja — …/actions/runs/<id>>`
-- Secuencia rojo → tests → verde → merge: `<URL del primer PR — …/pull/<n>>`
-- Freno vigente: `<URL del segundo PR, abierto — …/pull/<m>>`
+- Resumen de cobertura y reporte descargable (corrida verde, con el resumen del backend en la página y los artefactos `coverage-report` y `coverage-frontend`): https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/37683900655
+- Corrida roja por umbral: https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/37683090184
+- Secuencia rojo → tests → verde → merge: https://github.com/julietamelinsky01/Pagina-ing3/pull/19
+- Freno vigente, abierto y en rojo: https://github.com/julietamelinsky01/Pagina-ing3/pull/20
 
 ### Problemas encontrados y cómo los resolví
 
