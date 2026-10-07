@@ -10,6 +10,7 @@ import {
   MenuItem,
   Alert,
 } from "@mui/material";
+import { existeAsignacion } from "../utils/reglas";
 
 export default function AsignacionForm({ open, fecha, empleados, tiposTurno, asignaciones, onClose, onSubmit }) {
   const [empleadoId, setEmpleadoId] = useState("");
@@ -22,15 +23,10 @@ export default function AsignacionForm({ open, fecha, empleados, tiposTurno, asi
 
   // Chequeo del lado del cliente antes de pegarle a la API: evita el viaje redondo
   // para el caso más común de duplicado (mismo empleado + turno + fecha ya visibles en la semana).
-  const yaExiste = useMemo(() => {
-    if (!empleadoId || !tipoTurnoId) return false;
-    return asignaciones.some(
-      (a) =>
-        String(a.empleadoId) === String(empleadoId) &&
-        String(a.tipoTurnoId) === String(tipoTurnoId) &&
-        a.fecha === fecha
-    );
-  }, [asignaciones, empleadoId, tipoTurnoId, fecha]);
+  const yaExiste = useMemo(
+    () => existeAsignacion(asignaciones, empleadoId, tipoTurnoId, fecha),
+    [asignaciones, empleadoId, tipoTurnoId, fecha]
+  );
 
   function reset() {
     setEmpleadoId("");
