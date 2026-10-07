@@ -9,6 +9,7 @@ import {
   Stack,
   Alert,
 } from "@mui/material";
+import { dniValido, validarEmpleado, MENSAJE_DNI } from "../utils/reglas";
 
 const vacio = { nombre: "", apellido: "", dni: "", telefono: "", email: "", fechaIngreso: "" };
 
@@ -35,12 +36,8 @@ export default function EmpleadoForm({ open, empleado, onClose, onSubmit }) {
     }
   }, [open, empleado]);
 
-  const dniValido = /^\d{7,8}$/.test(form.dni);
-  const camposCompletos =
-    form.nombre.trim() !== "" &&
-    form.apellido.trim() !== "" &&
-    dniValido &&
-    form.fechaIngreso !== "";
+  const dniOk = dniValido(form.dni);
+  const camposCompletos = validarEmpleado(form).valido;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -83,9 +80,9 @@ export default function EmpleadoForm({ open, empleado, onClose, onSubmit }) {
               onChange={(e) => setForm({ ...form, dni: e.target.value })}
               required
               fullWidth
-              error={form.dni !== "" && !dniValido}
+              error={form.dni !== "" && !dniOk}
               helperText={
-                form.dni !== "" && !dniValido ? "El DNI debe ser numérico, de 7 u 8 dígitos." : " "
+                form.dni !== "" && !dniOk ? MENSAJE_DNI : " "
               }
             />
             <TextField

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Typography,
@@ -15,19 +15,19 @@ import {
 } from "@mui/material";
 import { getAsignaciones } from "../api/asignaciones";
 import { aISO, lunesDeLaSemana, sumarDias } from "../utils/fechas";
+import { cargarFilasReporte } from "../utils/reglas";
 
 export default function ReporteSemanal() {
   const inicioSemana = aISO(lunesDeLaSemana(aISO(new Date())));
   const [desde, setDesde] = useState(inicioSemana);
   const [hasta, setHasta] = useState(sumarDias(inicioSemana, 6));
-  const [asignaciones, setAsignaciones] = useState([]);
+  const [filas, setFilas] = useState([]);
   const [error, setError] = useState("");
 
   async function cargar() {
     setError("");
     try {
-      const data = await getAsignaciones(desde, hasta);
-      setAsignaciones(data);
+      setFilas(await cargarFilasReporte(desde, hasta, getAsignaciones));
     } catch (err) {
       setError(err.message);
     }
@@ -39,24 +39,6 @@ export default function ReporteSemanal() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desde, hasta]);
-
-  // Recalculo del total de horas por empleado en el cliente: se deriva de las
-  // asignaciones ya cargadas cada vez que cambia el rango, no viene armado del backend.
-  const filas = useMemo(() => {
-    const porEmpleado = new Map();
-    for (const a of asignaciones) {
-      const actual = porEmpleado.get(a.empleadoId) || {
-        empleadoId: a.empleadoId,
-        empleado: a.empleadoNombreCompleto,
-        turnos: 0,
-        horas: 0,
-      };
-      actual.turnos += 1;
-      actual.horas += a.horasCalculadas;
-      porEmpleado.set(a.empleadoId, actual);
-    }
-    return Array.from(porEmpleado.values()).sort((a, b) => a.empleado.localeCompare(b.empleado));
-  }, [asignaciones]);
 
   function exportarCsv() {
     const encabezado = "Empleado,Cantidad de turnos,Horas totales\n";

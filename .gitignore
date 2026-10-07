@@ -14,3 +14,11 @@ frontend/.env
 # Editor / OS
 .vscode/
 .DS_Store
+
+# Cobertura y resultados de tests (se generan en cada corrida)
+frontend/coverage/
+frontend-coverage/
+coveragereport/
+TestResults/
+**/TestResults/
+backend/**/coverage.json

@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LasMelis.Api", "LasMelis.Api\LasMelis.Api.csproj", "{3F07C8E6-05DB-4B49-BDA9-C9EE0011A1D9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LasMelis.Tests", "LasMelis.Tests\LasMelis.Tests.csproj", "{D82C269B-57D2-4A56-895A-49C78237345C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{3F07C8E6-05DB-4B49-BDA9-C9EE0011A1D9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3F07C8E6-05DB-4B49-BDA9-C9EE0011A1D9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3F07C8E6-05DB-4B49-BDA9-C9EE0011A1D9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D82C269B-57D2-4A56-895A-49C78237345C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D82C269B-57D2-4A56-895A-49C78237345C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D82C269B-57D2-4A56-895A-49C78237345C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D82C269B-57D2-4A56-895A-49C78237345C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

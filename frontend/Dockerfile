@@ -12,7 +12,13 @@ ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
-# ---- Etapa 2: nginx sirve los estáticos ----
+# ---- Etapa 2: tests (parte del build: ya tiene Node y las dependencias de desarrollo) ----
+# Corren en `docker run`, no al construir. `test:ci` mide cobertura y, si baja del umbral
+# declarado en vite.config.js (thresholds), sale con error aunque todos los tests pasen.
+FROM build AS test
+ENTRYPOINT ["npm", "run", "test:ci"]
+
+# ---- Etapa 3: nginx sirve los estáticos (queda ÚLTIMA: es la imagen que se despliega) ----
 FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
