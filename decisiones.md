@@ -379,3 +379,104 @@ El badge permite visualizar directamente desde la página principal del reposito
 Se utilizó ChatGPT (OpenAI) como asistente durante el TP4 para guiar la implementación progresiva del workflow, la incorporación del build de backend y frontend, la configuración del caché de Docker, la protección de `main`, la demostración controlada del quality gate y la incorporación del badge de CI.
 
 Las indicaciones fueron verificadas directamente mediante Git, Docker, GitHub Actions y las reglas de protección del repositorio. Se comprobó el uso efectivo del caché observando etapas `CACHED` en los logs y el funcionamiento del gate mediante un Pull Request que pasó de un build fallido y merge bloqueado a checks exitosos y merge habilitado.
+
+## TP5 — Calidad automatizada: tests, coverage y el umbral que frena un merge
+
+### Qué lógica elegí testear y por qué ESA
+
+Testeé la **capa de servicios** del backend (`EmpleadoService`, `AsignacionTurnoService`, `TipoTurnoService`, `AuthService`), `TurnoHorasCalculator` y `ExceptionHandlingMiddleware`, porque ahí viven las reglas de negocio y es donde un bug duele en esta app: asignar un turno a un empleado dado de baja, duplicar una asignación, o calcular mal las horas de un turno que cruza la medianoche (Noche 22:00–06:00) termina en un reporte de horas equivocado. Son 4 reglas centrales, cada una con su caso feliz y sus bordes:
+
+1. DNI único por empleado (incluido el borde "editar sin cambiar mi propio DNI").
+2. La fecha de ingreso no puede ser futura (incluido el borde "ingresar hoy").
+3. No se asigna un turno a un empleado inactivo ni se duplica la combinación empleado + turno + fecha.
+4. Cálculo de horas con turnos que cruzan la medianoche (con `[Theory]`: turno normal, nocturno, `fin == inicio` = 24 hs, media hora).
+
+Además: no se puede borrar un tipo de turno con asignaciones, la baja avisa cuántos turnos futuros quedan, el rango `desde`/`hasta` no puede estar invertido, y el login no revela si falló el usuario o la contraseña. La suite del backend tiene **43 métodos** `[Fact]`/`[Theory]` (50 casos contando los datos de cada `[Theory]`) y la del frontend **37 casos** (`it`/`it.each`: 11 en `fechas.test.js` y 26 en `reglas.test.js`).
+
+En el frontend testeé **lógica pura** extraída de las páginas a `src/utils/reglas.js` (`dniValido`, `validarEmpleado`, `existeAsignacion`, `totalHorasPorEmpleado`, `cargarFilasReporte`) y las fechas de `src/utils/fechas.js` (`lunesDeLaSemana` con el borde del domingo, `sumarDias` cruzando mes y año). No testeé componentes React: se verifican end-to-end en el TP7.
+
+Las tres técnicas, de los dos lados:
+
+| Técnica | Backend | Frontend |
+|---|---|---|
+| Parametrizado | `[Theory]` + `[InlineData]` en `TurnoHorasCalculatorTests` y en el middleware | `it.each` en `dniValido`, `validarEmpleado`, `existeAsignacion`, `lunesDeLaSemana`, `sumarDias` |
+| Caso de error | `Crear_ConFechaDeIngresoFutura_EsRechazadoYNoGuarda`, `Crear_ParaUnEmpleadoInactivo_EsRechazadoYNoGuarda` (el mensaje y el "no guardó" también se verifican) | `validarEmpleado` rechaza cada campo faltante y dice cuál; `cargarFilasReporte` rechaza un rango invertido |
+| Mock | Moq sobre `IEmpleadoRepository`, `IAsignacionTurnoRepository`, `ITipoTurnoRepository` y `IUsuarioRepository`: se reemplaza la base y se verifica la interacción (`Verify(..., Times.Once / Times.Never)`) | `vi.fn()` como `obtenerAsignaciones` en `cargarFilasReporte`: `toHaveBeenCalledWith(desde, hasta)` y `not.toHaveBeenCalled()` |
+
+### Si refactoricé para poder mockear
+
+- **Backend: no hizo falta.** Los servicios ya recibían sus repositorios por **interfaz en el constructor** (y están registrados en `Program.cs`), así que Moq pudo fabricar el doble sin tocar el código de la app.
+- **Frontend: sí.** La lógica estaba adentro de los componentes: `ReporteSemanal` llamaba directo a `getAsignaciones` y calculaba los totales en un `useMemo` dentro del componente, y `EmpleadoForm`/`AsignacionForm` tenían las validaciones en línea. Eso no se puede testear sin montar la UI. Las saqué a funciones puras en `src/utils/reglas.js` y los componentes ahora las llaman, con el mismo comportamiento. En particular `cargarFilasReporte(desde, hasta, obtenerAsignaciones)` recibe la dependencia que habla con la API **por parámetro**: en la app es `getAsignaciones`, en el test un `vi.fn()`.
+
+### Mi umbral de coverage
+
+| | Backend | Frontend |
+|---|---|---|
+| Umbral | **65** | **90** |
+| Métrica sobre la que frena | **línea y rama** (`ThresholdType=line%2cbranch`: un solo `Threshold` se aplica a las dos y frena por la que quede corta) | **línea y rama** (`thresholds: { lines: 90, branches: 90 }`) |
+| Lo que mido hoy | **68,7 % de línea · 85,29 % de rama** | **100 % de línea · 100 % de rama** |
+
+**Por qué esos números.** Anclé el umbral en mi medición real, por debajo, para que me frene si baja y no sea inalcanzable. En el backend puse 65 porque el 68,7 % está arrastrado por código real que hoy **no** tiene test unitario (controllers y repositorios de EF, ver abajo); con 65 tengo ~4 puntos de margen y un cambio con unas 30 líneas nuevas sin tests ya lo cruza. En el frontend la lógica pura es chica y la tengo al 100 %, así que 90 deja margen para una rama menor sin cubrir pero frena un archivo nuevo sin tests. Reporto siempre el de **rama** aunque el umbral sea sobre ambas: es la más honesta, porque un `if` con una sola rama ejercitada da 100 % de línea y 50 % de rama.
+
+**Qué haría falta para subirlo a 85 en el backend:** tests de integración de los repositorios contra una base real y de los controllers (hoy no los hay): eso es del TP7, no de un unit test.
+
+### Qué dejé afuera de la cuenta de cobertura (y por qué cada cosa)
+
+**Backend** (`/p:Exclude` en el `ENTRYPOINT` de la etapa `test` del `backend/Dockerfile`, y el mismo recorte en `-classfilters` del reporte, para que Summary y umbral midan lo mismo):
+
+- `Program*` — el arranque: cablea servicios, JWT y CORS; no tiene reglas de negocio y, si está mal, la app no levanta.
+- `LasMelis.Api.Data.*` — el `AppDbContext`: configuración del modelo, sin reglas.
+- `LasMelis.Api.Models.*` — clases de datos, sólo propiedades.
+- `LasMelis.Api.Migrations.*` — código **generado** por EF Core.
+
+**Lo que dejé ADENTRO sin tests, a propósito:** `Controllers` y `Repositories`. Son código escrito por mí, no generado, y no los excluí porque sacarlos hubiera subido el número sin que los tests verifiquen más. Tienen ~160 líneas sin cubrir y por eso el backend mide 68,7 % y no 95 %. Los controllers sólo delegan en el servicio y los repositorios sólo traducen a consultas de EF; lo que importa de ellos se verifica con integración / e2e (TP7).
+
+**Frontend** (`include: ['src/utils/**']` en `vite.config.js`): entra sólo la lógica pura. Quedan afuera las páginas y componentes (UI, verificada end-to-end en el TP7), `src/api` (adaptadores finos sobre axios) y el arranque (`main.jsx`, `App.jsx`). Verifiqué que el reporte lista los archivos esperados (`fechas.js` y `reglas.js`) y no mide cero.
+
+### Por qué coverage alto no garantiza calidad (con MI ejemplo)
+
+Cuando medí por primera vez, `EmpleadoService` ya tenía sus líneas cubiertas, y aun así le **invertí a mano** el borde de la regla de fecha (`fechaIngreso > hoy` → `>=`) y **los 46 tests seguían en verde**: el mutante sobrevivió. La línea estaba ejecutada, pero nadie verificaba el caso "ingresó hoy". La cobertura medía ejecución, no verificación. Escribí `Crear_ConFechaDeIngresoDeHoy_EsValido`, repetí la mutación y esta vez el test se puso en rojo.
+
+Apliqué el mismo control a 7 mutantes (bordes `<=`/`<`, la regla de inactivos invertida, el rango de fechas, el DNI de 7–8 dígitos, el domingo en `lunesDeLaSemana`): los 7 mueren con la suite actual. Un test de "cobertura sin verdad" sería, conceptualmente, `TurnoHorasCalculator.CalcularHoras(new TimeOnly(8,0), new TimeOnly(16,0));` sin ningún `Assert`: ejecuta todo y no comprueba nada.
+
+### El ejercicio de la rama sin cubrir
+
+Abrí el reporte de cobertura del backend y busqué ramas de código a medias (naranja, `1/2`). Eligí la de **`AsignacionTurnoService.cs`, línea 64**, el `?? throw new NotFoundAppException(...)` al principio de `UpdateAsync`.
+
+1. **Qué línea es:** `var asignacion = await _repository.GetByIdAsync(id) ?? throw ...` — el `??` abre dos caminos: la asignación existe (cubierto) y no existe (sin cubrir).
+2. **Qué entrada la recorrería:** `UpdateAsync(999, dto)` con el repositorio devolviendo `null` → tiene que lanzar `NotFoundAppException` y no llamar a `UpdateAsync` del repositorio.
+3. **Qué decidí:** *(completar con tu decisión — las tres respuestas valen, incluida "no lo agregué"; lo que se evalúa es que miraste el código)*. Mi lectura: es el mismo patrón `?? throw` que ya verifican `GetByIdAsync` y `DeleteAsync` en ese servicio, así que el riesgo es bajo, pero el test cuesta cinco líneas, así que lo agregaría si ese `UpdateAsync` empezara a tener más lógica.
+
+(La rama de `TipoTurnoService.UpdateAsync`, línea 45, quedó en el mismo estado y por el mismo motivo.)
+
+### Mi Pull Request bloqueado por cobertura
+
+*(completar después de la demostración — §3.5 de la guía)*
+
+- **PR que cuenta la historia (mergeado):** `<URL del PR>` — rojo por cobertura → los tests que faltaban → verde → merge.
+- **PR que prueba el freno (abierto y en rojo hasta la defensa):** `<URL del PR>`.
+- **Corrida roja por umbral, con el número en el log:** `<URL de la corrida>`.
+- Qué check se puso en rojo y en qué métrica: `<build-frontend / build-backend>`, `<líneas / ramas>`, con vitest 5.0.3 / coverlet.msbuild 10.1.0.
+- Qué escribí para arreglarlo: `<tests por cada camino del código nuevo>`.
+
+Este freno es distinto del del TP4: allá el job se ponía en rojo porque algo **no compilaba**; acá compila perfecto y los tests pasan todos, y el merge se bloquea igual porque un número que yo elegí no se cumple. Lo que deja pasar igual: que el requisito esté mal entendido (los tests custodian lo que yo entendí) y todo lo que no está medido (UI, controllers, repositorios).
+
+### Enlaces que prueban cada decisión
+
+- Resumen de cobertura y reporte descargable: `<URL de la corrida verde en main — …/actions/runs/<id>>`
+- Corrida roja por umbral: `<URL de la corrida roja — …/actions/runs/<id>>`
+- Secuencia rojo → tests → verde → merge: `<URL del primer PR — …/pull/<n>>`
+- Freno vigente: `<URL del segundo PR, abierto — …/pull/<m>>`
+
+### Problemas encontrados y cómo los resolví
+
+- **Un mutante sobrevivió** en la regla de fecha de ingreso (ver arriba): la cobertura de líneas no lo veía. Se resolvió con el test del borde "hoy".
+- **El umbral del backend no frena con `coverlet.collector`**, que es el paquete que trae el template y sólo mide. Hizo falta `coverlet.msbuild` y tres parámetros (`CollectCoverage`, `Threshold`, `ThresholdType`) en el `ENTRYPOINT`; verifiqué que realmente rompe: con `Threshold=90` el build falla con *"The minimum line coverage is below the specified 90"* aunque los 50 tests pasen.
+- **La coma en MSBuild:** `ThresholdType=line,branch` y las listas de `Exclude` se parten por coma y fallan o se ignoran en silencio; se escriben `%2c`.
+- **La etapa `test` del backend necesitaba el proyecto de tests dentro de la imagen:** el `backend/Dockerfile` del TP2 sólo copiaba el `.csproj` de la API para el `restore`. Ahora copia la solución y los dos `.csproj` antes del `restore` (si no, `dotnet test` bajaría los paquetes en cada corrida).
+- **`@vitest/coverage-v8` tiene que ser de la misma versión que `vitest`** (5.0.3 los dos; lo comprobé con `npm ls`).
+- **Un test de frontend que cubre una función no puede usar la red:** por eso la extracción de `cargarFilasReporte` con la dependencia por parámetro.
+
+### Uso de IA
+
+Usé **Claude Code (Anthropic)** para este TP: escribió la primera versión de la suite de tests del backend y del frontend, el refactor del frontend a `src/utils/reglas.js`, la etapa `test` de los dos Dockerfiles, los pasos nuevos del `ci.yml` y este apartado. **Cómo lo verifiqué:** corrí las dos suites (`dotnet test` y `vitest`); medí la cobertura real y elegí los umbrales sobre esos números; comprobé que el umbral **rompe** de verdad (`Threshold=90` falla con los tests en verde); apliqué mutación manual a 7 reglas para ver que algún test se ponga en rojo al invertirlas (así apareció el agujero del borde "hoy"); y revisé que el refactor del frontend no cambió el comportamiento (`vite build` y `oxlint` siguen pasando). Lo que no fue asistido: la app, sus reglas de negocio y la elección del stack (TP1–TP4). **Qué verifica cada assert y qué no está cubierto** lo tengo que poder explicar en la defensa: no están cubiertos los controllers, los repositorios de EF, `Program.cs`, la UI, ni el `UpdateAsync` de asignación/tipo de turno sobre un id inexistente.
