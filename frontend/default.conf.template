@@ -1,0 +1,26 @@
+server {
+    listen 80;
+
+    # SPA con react-router (BrowserRouter): fallback a index.html para que
+    # rutas como /empleados o /calendario no den 404 al refrescar.
+    location / {
+        root /usr/share/nginx/html;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # La dirección del backend y el DNS llegan por variables de entorno: en compose,
+    # el nombre del servicio y el DNS de Docker; en Render, la URL de la api de ESTE
+    # entorno y un DNS público. El nombre va en una VARIABLE (no directo en el proxy_pass)
+    # para que nginx lo resuelva al recibir un pedido y no se niegue a arrancar si el
+    # backend todavía no existe.
+    resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+    set $backend_api ${BACKEND_URL};
+
+    # proxy_pass SIN barra ni ruta al final: /api/empleados llega al backend como
+    # /api/empleados (los controllers ya viven bajo /api).
+    location /api/ {
+        proxy_pass $backend_api;
+        proxy_ssl_server_name on;   # la api de Render es https: sin esto el TLS no sabe a qué host va
+    }
+}

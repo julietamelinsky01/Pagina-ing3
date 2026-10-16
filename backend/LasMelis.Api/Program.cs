@@ -108,4 +108,11 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Público (sin JWT): lo usa el smoke test del pipeline. Además de "el proceso está vivo",
+// prueba que la base responde: un /health que no toca la BD da verde con la conexión rota.
+app.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
+    await db.Database.CanConnectAsync(ct)
+        ? Results.Ok(new { status = "ok" })
+        : Results.Json(new { status = "db-unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable));
+
 app.Run();

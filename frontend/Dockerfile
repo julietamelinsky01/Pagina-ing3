@@ -5,11 +5,6 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 
-# La app usa URL absoluta (VITE_API_URL) en vez del proxy relativo /api de nginx
-# (ver decisiones.md, sección Docker) — Vite la resuelve en BUILD TIME, así que
-# tiene que llegar como build arg, no como variable de entorno del contenedor final.
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # ---- Etapa 2: tests (parte del build: ya tiene Node y las dependencias de desarrollo) ----
@@ -20,6 +15,11 @@ ENTRYPOINT ["npm", "run", "test:ci"]
 
 # ---- Etapa 3: nginx sirve los estáticos (queda ÚLTIMA: es la imagen que se despliega) ----
 FROM nginx:alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx procesa los archivos de /etc/nginx/templates/ al arrancar y reemplaza ${VARIABLE}
+# por su valor: la dirección del backend entra por el ENTORNO, no queda escrita en la imagen.
+# Los valores por defecto son los de docker compose; en QA/PROD se pisan con variables.
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
+ENV BACKEND_URL=http://backend:8080 \
+    DNS_RESOLVER=127.0.0.11
 EXPOSE 80

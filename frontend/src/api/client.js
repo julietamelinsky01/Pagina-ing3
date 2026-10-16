@@ -1,7 +1,10 @@
 import axios from "axios";
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  // En producción (imagen) no hay ninguna dirección escrita: se pide a /api, del mismo origen,
+  // y nginx lo reenvía al backend de ESE entorno (BACKEND_URL). VITE_API_URL queda sólo
+  // para desarrollo local (`npm run dev`, ver .env.example).
+  baseURL: import.meta.env.VITE_API_URL || "/api",
 });
 
 apiClient.interceptors.request.use((config) => {
