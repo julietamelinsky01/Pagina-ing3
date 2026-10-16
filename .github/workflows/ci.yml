@@ -9,6 +9,9 @@ on:
 jobs:
   build-backend:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # sólo este job publica el paquete: mínimo privilegio, por job y no a nivel workflow
 
     steps:
       - name: Qué estamos verificando
@@ -20,15 +23,6 @@ jobs:
 
       - name: Preparar el constructor que sabe cachear
         uses: docker/setup-buildx-action@v4
-
-      - name: Construir la imagen del backend
-        uses: docker/build-push-action@v7
-        with:
-          context: ./backend
-          push: false
-          tags: backend:ci
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
 
       - name: Construir la etapa de tests del backend
         uses: docker/build-push-action@v7
@@ -69,8 +63,35 @@ jobs:
             coveragereport
             TestResults/tests.trx
 
+      # --- Publicar el artefacto: lo ÚLTIMO del job, después de los tests ---
+      # No hay ningún `if` que diga "si los tests pasaron": no hace falta. Los pasos corren en
+      # orden y se cortan al primer error, así que si los tests fallan el job muere antes de
+      # llegar acá. Y estos dos pasos no llevan `!cancelled()` a propósito.
+      - name: Entrar al registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Se construye siempre (así un PR también verifica que la imagen final arma), pero sólo
+      # se PUBLICA cuando el cambio ya entró a main. Nombre en minúsculas, escrito a mano:
+      # el registry no acepta mayúsculas y el repo se llama Pagina-ing3.
+      - name: Construir y publicar la imagen del backend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ghcr.io/julietamelinsky01/pagina-ing3-backend:sha-${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
   build-frontend:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Qué estamos verificando
@@ -82,15 +103,6 @@ jobs:
 
       - name: Preparar el constructor que sabe cachear
         uses: docker/setup-buildx-action@v4
-
-      - name: Construir la imagen del frontend
-        uses: docker/build-push-action@v7
-        with:
-          context: ./frontend
-          push: false
-          tags: frontend:ci
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
 
       - name: Construir la etapa de tests del frontend
         uses: docker/build-push-action@v7
@@ -130,3 +142,21 @@ jobs:
         with:
           name: coverage-frontend
           path: frontend-coverage
+
+      # --- Publicar el artefacto: lo ÚLTIMO del job, después de los tests (ver el job del backend) ---
+      - name: Entrar al registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construir y publicar la imagen del frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ghcr.io/julietamelinsky01/pagina-ing3-frontend:sha-${{ github.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
