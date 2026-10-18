@@ -557,7 +557,9 @@ Una aprobación sin criterios sería sólo latencia. Cuándo **no** agregaría v
 
 ### El rechazo documentado
 
-La corrida #28 (`d234e47`) quedó con `deploy-prod` en «rejected»: la máquina obedeció al humano, el job terminó fallido y los pasos de deploy **no corrieron**. En Render, `pagina-ing3-front-prod` siguió con un único deploy (`ed6808b`, «First Deploy»), así que producción quedó intacta. Motivo del rechazo (textual del comentario): **[COMPLETAR con el texto exacto que escribí al rechazar]**.
+La corrida #28 (`d234e47`) quedó con `deploy-prod` en «rejected»: la máquina obedeció al humano, el job terminó fallido y los pasos de deploy **no corrieron**. En Render, `pagina-ing3-front-prod` siguió con un único deploy (`ed6808b`, «First Deploy»), así que producción quedó intacta. Motivo del rechazo (textual del comentario): «Rechazado: todavía no revisé en QA que el cambio se vea bien antes de pasarlo a producción». Fue el primer rechazo, para comprobar que el gate frena; el segundo, con un motivo ligado al contenido de esa corrida, está más abajo.
+
+**[COMPLETAR tras el merge de este PR: link de la corrida rechazada y mi motivo textual]**
 
 ### La letra chica del free tier y cómo la maneja el pipeline
 
