@@ -2,6 +2,35 @@
 
 Este archivo reúne las decisiones tomadas en los trabajos prácticos de Ingeniería de Software 3.
 
+## Enlaces de este TP (TP6)
+
+**Paquetes públicos en ghcr.io** (etiquetados con el commit del merge `be64dbb`; el `docker pull` anda sin credenciales):
+
+- Backend: https://github.com/users/julietamelinsky01/packages/container/package/pagina-ing3-backend
+  `docker pull --platform linux/amd64 ghcr.io/julietamelinsky01/pagina-ing3-backend:sha-be64dbb43863904c389dd7d0c15823269d07fd19`
+- Frontend: https://github.com/users/julietamelinsky01/packages/container/package/pagina-ing3-frontend
+  `docker pull --platform linux/amd64 ghcr.io/julietamelinsky01/pagina-ing3-frontend:sha-be64dbb43863904c389dd7d0c15823269d07fd19`
+
+**La cadena del artefacto** (las dos corridas del mismo cambio):
+
+- Corrida del PR (construye pero no publica; el paso «Entrar al registry» queda salteado): https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/38977758581
+- Corrida de `main` tras el merge (publica como último paso de cada job): https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/39158994571
+
+**Entornos vivos** (Render + Neon):
+
+| | Front | API |
+|---|---|---|
+| QA | https://pagina-ing3-front-qa.onrender.com | https://pagina-ing3-api-qa.onrender.com/health |
+| PROD | https://pagina-ing3-front-prod.onrender.com | https://pagina-ing3-api-prod.onrender.com/health |
+
+El plan gratis de Render duerme los servicios: el primer pedido puede tardar ~50 s (ver «La letra chica del free tier»).
+
+**Flujo de aprobación y release:**
+
+- Rechazo con motivo: https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/39169844071 (corrida #28, `deploy-prod` rechazado).
+- Aprobación (QA → «Waiting for review» → aprobado → PROD con smoke verde): https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/39171298223 (corrida #30) y https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/39172530014 (corrida #32).
+- Release: https://github.com/julietamelinsky01/Pagina-ing3/releases/tag/v6.0.0
+
 ## TP1 — Git colaborativo
 
 ### 1. Por qué Git no pudo resolver el conflicto solo
@@ -478,3 +507,109 @@ Este freno es distinto del del TP4: allá el job se ponía en rojo porque algo *
 ### Uso de IA
 
 Usé **Claude Code (Anthropic)** para este TP: escribió la primera versión de la suite de tests del backend y del frontend, el refactor del frontend a `src/utils/reglas.js`, la etapa `test` de los dos Dockerfiles, los pasos nuevos del `ci.yml` y este apartado. **Cómo lo verifiqué:** corrí las dos suites (`dotnet test` y `vitest`); medí la cobertura real y elegí los umbrales sobre esos números; comprobé que el umbral **rompe** de verdad (`Threshold=90` falla con los tests en verde); apliqué mutación manual a 7 reglas para ver que algún test se ponga en rojo al invertirlas (así apareció el agujero del borde "hoy"); y revisé que el refactor del frontend no cambió el comportamiento (`vite build` y `oxlint` siguen pasando). Lo que no fue asistido: la app, sus reglas de negocio y la elección del stack (TP1–TP4). **Qué verifica cada assert y qué no está cubierto** lo tengo que poder explicar en la defensa: no están cubiertos los controllers, los repositorios de EF, `Program.cs`, la UI, ni el `UpdateAsync` de asignación/tipo de turno sobre un id inexistente.
+
+## TP6 — CD: environments, aprobaciones y deployment patterns
+
+### Qué publica el pipeline y por qué sólo con la verificación en verde
+
+El pipeline publica **un paquete por Dockerfile**: `pagina-ing3-backend` y `pagina-ing3-frontend` en ghcr.io, etiquetados `sha-<commit>`. La publicación es el **último paso** de cada job, después de correr los tests y de medir el coverage, y sólo ocurre en un `push` a `main`. No existe un `if` que diga «si los tests pasaron»: no hace falta, porque los pasos corren en orden y se cortan al primer error. Son tres controles encadenados: (1) nada entra a `main` sin verde (branch protection del TP4/TP5), (2) sólo `main` publica, (3) publicar es lo último del job que testea.
+
+Si se publicara igual, el registry dejaría de significar «esto pasó la verificación» y pasaría a ser un depósito de imágenes sin garantía: nadie podría confiar en que lo que está publicado es lo que se testeó. Limitación honesta: nada impide que alguien haga un `docker push` a mano; la garantía es de proceso, no criptográfica (un digest atado a la corrida sí lo sería).
+
+### Continuous Delivery vs Continuous Deployment: cuál implementé
+
+Implementé **Continuous Delivery**: cada cambio que pasa la verificación llega **solo** a QA, pero a producción sólo llega con una **aprobación humana** en el environment `production`. Continuous Deployment sería sacar esa aprobación y que todo lo verde llegue a PROD solo. Para esta app, con un solo desarrollador y sin observabilidad ni rollback automático, prefiero que una persona mire QA antes de tocar producción. Para pasar a Deployment me faltarían smoke tests más fuertes, monitoreo con alertas y un rollback automático; hoy no lo querría.
+
+### El diseño de la cadena y el alcance de cada secret
+
+```
+build-backend / build-frontend   → verifican y publican la imagen (sólo en main)
+deploy-qa    needs: los dos builds · if: main · environment: qa
+deploy-prod  needs: deploy-qa      · if: main · environment: production · concurrency: deploy-production
+```
+
+- `needs` impone el orden: sin builds verdes no hay QA, y sin QA no hay PROD.
+- `if: github.ref == 'refs/heads/main'` hace que los PR sólo verifiquen: en un PR, los dos jobs de deploy quedan salteados.
+- Los **deploy hooks** de Render son secrets **de environment**: los de QA viven en `qa` y los de PROD en `production`. Un job que no declara `environment: production` no puede leer los hooks de producción, y un workflow que corre en una rama sin permiso tampoco. Si estuvieran en el repo, cualquier job (o un PR malicioso) podría desplegar a producción sin pasar por la aprobación.
+- `production` tiene **required reviewer** (yo) con *Prevent self-review* desactivado (soy la única persona del repo) y *Allow administrators to bypass* desactivado, para que la aprobación sea obligatoria de verdad.
+- Los hooks se llaman con **`&ref=$GITHUB_SHA`**: se despliega el commit que el pipeline verificó, no la punta de la rama. Sin eso, con dos merges seguidos, la corrida del primero desplegaría el segundo, que todavía no pasó por nada.
+- `concurrency` (`cancel-in-progress: false`) evita dos deploys a PROD pisándose. No me ordena la cola de aprobaciones: si quedan dos corridas esperando, aprobar la vieja haría retroceder PROD, y la regla es rechazar la vieja a mano.
+
+### Qué quedó por variable de entorno y qué quedó dentro de la imagen
+
+**La misma imagen del front** sirve en QA y en PROD; cada entorno le dice a quién llamar por variables:
+
+- Por variable (al arrancar): `BACKEND_URL` y `DNS_RESOLVER` del front (nginx las sustituye en la plantilla `default.conf.template` con `envsubst`); `ConnectionStrings__DefaultConnection`, `Jwt__Key`, `Jwt__Issuer` y `Jwt__Audience` del backend.
+- Dentro de la imagen: el código, la plantilla de nginx, y valores por defecto pensados para `docker-compose` (`BACKEND_URL=http://backend:8080`).
+- El front llama a la ruta relativa `/api` (no tiene URL de backend horneada) y nginx la reenvía al backend del entorno. El backend expone `/health`, que verifica además que la base responda.
+- **Bases separadas por entorno:** dos bases en Neon, `app_qa` y `app_prod`. Lo comprobé creando un empleado sólo en `app_prod` desde el SQL Editor: aparece en PROD y no en QA.
+
+### Qué mira mi aprobador antes de aprobar
+
+Antes de apretar «Approve and deploy» reviso, en esa corrida concreta:
+
+1. Que `build-backend`, `build-frontend` y `deploy-qa` estén en verde, y que el smoke test de QA haya pasado.
+2. **Que el cambio esté visible en QA** (no confío en el verde solo: abro la URL de QA y veo el cambio funcionando).
+3. Qué commit y qué PR entran (el título de la corrida), para saber qué toca.
+4. Que no haya **otra corrida más nueva esperando aprobación**: si la hay, rechazo la vieja para que PROD no retroceda.
+
+Una aprobación sin criterios sería sólo latencia. Cuándo **no** agregaría valor: en un cambio de documentación o en un entorno donde un fallo no cuesta nada.
+
+### El rechazo documentado
+
+La corrida #28 (`d234e47`) quedó con `deploy-prod` en «rejected»: la máquina obedeció al humano, el job terminó fallido y los pasos de deploy **no corrieron**. En Render, `pagina-ing3-front-prod` siguió con un único deploy (`ed6808b`, «First Deploy»), así que producción quedó intacta. Motivo del rechazo (textual del comentario): **[COMPLETAR con el texto exacto que escribí al rechazar]**.
+
+### La letra chica del free tier y cómo la maneja el pipeline
+
+- Los servicios gratis de Render **se duermen** por inactividad y el primer pedido tarda ~50 s (cold start). Me pasó: el primer acceso a QA mostró «Ocurrió un error inesperado» y se resolvió recargando.
+- Hay 750 horas por workspace y 500 minutos de build por mes: cada deploy gasta build, por eso no despliego en los PR.
+- El **smoke test reintenta** (30 intentos cada 20 s, 10 minutos como máximo, con `--max-time 10` por pedido): un `curl` seco daría falsos rojos por el cold start. Neon también suspende la base inactiva, y `/health` la despierta.
+
+### Qué garantía pierdo porque Render reconstruye desde el repo
+
+El deploy **no usa la imagen que publiqué en ghcr.io**: Render reconstruye el commit desde el repositorio. Entonces despliego el **commit verificado, no la imagen verificada**. Dos builds del mismo commit podrían diferir (por ejemplo, una imagen base que cambió entre una construcción y otra). Es lo que cierra el TP7: desplegar la imagen publicada por su digest, para que lo que corre sea exactamente lo que se verificó.
+
+### Qué prueba mi smoke test y qué no
+
+Prueba que el entorno **contesta**: `/health` del backend responde 200 (el proceso vive **y** la base responde), el front sirve la página (200) y el proxy de nginx llega al backend (`/api/empleados` sin token devuelve 401; con el proxy roto daría 502/504/404).
+
+**No** prueba qué versión corre: el hook responde al instante y Render construye en segundo plano; si el build falla, sigue sirviendo la versión anterior y el smoke da verde igual. Lo vi en la práctica: `deploy-qa` tardó 8 s porque QA ya estaba vivo con la versión vieja. Por eso verifico además a mano el cambio visible (el pie «versión 6.0.0») en QA y en PROD.
+
+### Deployment pattern para producción real
+
+Para esta app, con usuarios reales, elegiría **blue-green** y complementaría con **feature flags**:
+
+- Blue-green: levanto la versión nueva en un entorno paralelo («green»), la verifico con el smoke y conmuto el tráfico; el rollback es volver a conmutar, instantáneo. Costo: doble infraestructura durante el cambio.
+- Canary lo descarto por ahora: pide partir el tráfico y medir tasa de errores y latencia en tiempo real para decidir, y hoy **me falta esa observabilidad** (métricas, alertas) y un balanceador con pesos.
+- Rolling no me convence con una sola instancia por servicio.
+- Con base de datos compartida, las migraciones tienen que ser compatibles hacia atrás (agregar primero, borrar después), o blue-green no sirve.
+- **Deploy ≠ release:** con un feature flag despliego el código apagado y lo «libero» cuando decido, sin desplegar de nuevo. En mi app lo usaría, por ejemplo, para activar el reporte semanal sólo para algunos usuarios.
+
+### Plan de rollback y su tiempo medido
+
+Como el deploy se dispara con el commit explícito (`&ref=<sha>`), **volver atrás es disparar los mismos hooks con el SHA del último deploy bueno**:
+
+1. Identifico el commit bueno anterior (la release `v6.0.0`: `git rev-list -n1 v6.0.0`).
+2. Llamo a los dos hooks de PROD con `&ref=<sha>`.
+3. Verifico en Render → *Deploys* que ese commit figure como **Live** en los dos servicios, y en la URL de PROD que volvió la versión anterior.
+
+**Lo medí de verdad.** Subí PROD a la versión `6.0.1` (corrida #32) y volví a `v6.0.0` (commit `be64dbb`): disparé los hooks a las **19:40:12**; en Render el deploy del API empezó a las 19:40:14 y duró 42,8 s (Live ~19:40:57) y el del front duró 44,3 s (Live ~19:40:58). **Rollback medido: ~46 s** desde el disparo hasta que el último servicio quedó Live. Los ids de los deploys son `dep-dbakljlg1s2s73cfoal0` (API) y `dep-dbakljm7bikc73f0psv0` (front).
+
+**Lo que el rollback de código no deshace:** los datos y el esquema de la base. Una migración que borró una columna sigue borrada aunque vuelva el código anterior. En este caso el rollback es seguro porque el cambio de `6.0.1` fue sólo de texto, sin migraciones.
+
+La métrica DORA que ejercito es el **tiempo de recuperación** (*time to restore*); el pipeline también mide frecuencia de despliegue y *lead time* de cada cambio.
+
+### Release
+
+`v6.0.0` marca el commit que **efectivamente llegó a PROD** (`be64dbb`), no la punta de `main`: el número lo fija el práctico (TP6 → `v6.0.0`), no un criterio SemVer del producto. Se publicó como Release de GitHub con las notas generadas desde los PR #22 a #26.
+
+### Problemas encontrados y cómo los resolví
+
+- **Cold start:** el primer acceso a QA mostró un error genérico; era el servicio dormido y se resolvió recargando. El smoke test reintenta por eso.
+- **Smoke verde contra la versión vieja:** el primer `deploy-qa` pasó en 8 s porque QA ya respondía con la versión anterior. Lo documenté como limitación y verifico el cambio visible a mano.
+- **Render reconstruye en vez de usar la imagen publicada:** lo detecté al leer los deploys (trigger `Deploy Hook`, build desde el repo); lo dejo anotado para el TP7.
+- **Comandos pegados donde no iban:** pegué una URL en la terminal y un link de hook en la línea de `read`; aprendí que `read -rs` va solo y espera el valor en la línea siguiente.
+
+### Uso de IA
+
+Usé Claude (Anthropic) como asistente para guiarme paso a paso: diseñar la configuración por entorno (nginx con plantilla, `/health`), escribir los jobs `deploy-qa` y `deploy-prod` del `ci.yml`, y preparar el rollback medido. Yo hice los merges, creé los environments y los secrets en GitHub, configuré Render y Neon, rechacé y aprobé los deploys, y ejecuté el rollback. Verifiqué cada paso contra las corridas de *Actions*, los *Deploys* de Render y las URLs de QA y PROD.
