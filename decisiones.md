@@ -559,7 +559,7 @@ Una aprobación sin criterios sería sólo latencia. Cuándo **no** agregaría v
 
 La corrida #28 (`d234e47`) quedó con `deploy-prod` en «rejected»: la máquina obedeció al humano, el job terminó fallido y los pasos de deploy **no corrieron**. En Render, `pagina-ing3-front-prod` siguió con un único deploy (`ed6808b`, «First Deploy»), así que producción quedó intacta. Motivo del rechazo (textual del comentario): «Rechazado: todavía no revisé en QA que el cambio se vea bien antes de pasarlo a producción». Fue el primer rechazo, para comprobar que el gate frena; el segundo, con un motivo ligado al contenido de esa corrida, está más abajo.
 
-**[COMPLETAR tras el merge de este PR: link de la corrida rechazada y mi motivo textual]**
+**Segundo rechazo, con motivo ligado a esa corrida:** la corrida #34 (https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/39174556699) es el merge de este mismo archivo, `decisiones.md`. Rechacé `deploy-prod` escribiendo: «Rechazado: este merge sólo cambia decisiones.md, no toca código ni configuración; no hay nada nuevo que probar en PROD». Lo que vi en esa corrida fue que el diff era sólo documentación: redesplegar PROD no cambia nada que se pueda probar y gasta minutos de build del plan gratis. Resultado: `deploy-qa` corrió y pasó, `deploy-prod` quedó fallido por el rechazo, y los pasos de deploy a producción no se ejecutaron.
 
 ### La letra chica del free tier y cómo la maneja el pipeline
 
