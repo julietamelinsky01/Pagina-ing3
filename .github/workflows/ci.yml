@@ -160,3 +160,52 @@ jobs:
           tags: ghcr.io/julietamelinsky01/pagina-ing3-frontend:sha-${{ github.sha }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
+
+  # --- Promoción a QA: arranca donde termina la verificación ---
+  deploy-qa:
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]     # sin CI verde no hay deploy
+    if: github.ref == 'refs/heads/main'        # los PRs verifican; sólo main despliega
+    environment: qa                            # hereda los secrets de QA (los deploy hooks) y suma al historial de Deployments
+    steps:
+      # El `&ref=` no es opcional: un hook "pelado" despliega la PUNTA de la rama, no el commit
+      # que este pipeline acaba de verificar. Con dos merges seguidos, la corrida del primero
+      # desplegaría el segundo, que todavía no pasó por nada. El hook ya trae un `?key=…`,
+      # por eso va `&` y no `?`.
+      # Ojo: Render RECONSTRUYE ese commit desde el repositorio; no usa la imagen que se publicó
+      # en ghcr.io. Se despliega el commit verificado, no la imagen verificada (eso lo cierra el TP7).
+      - name: Disparar deploy en Render (backend + front) del commit verificado
+        env:
+          HOOK_API: ${{ secrets.RENDER_HOOK_API_QA }}
+          HOOK_FRONT: ${{ secrets.RENDER_HOOK_FRONT_QA }}
+        run: |
+          curl -fsS --max-time 30 "$HOOK_API&ref=$GITHUB_SHA"
+          curl -fsS --max-time 30 "$HOOK_FRONT&ref=$GITHUB_SHA"
+
+      # Reintenta (30 x 20 s) porque el plan gratis de Render duerme el servicio y tarda en
+      # construir y despertar (cold start). Un curl seco daría falsos rojos. Verifica tres cosas:
+      #   1. /health del backend: el proceso vive Y la base responde (200).
+      #   2. el front sirve la página (200).
+      #   3. el front llega al backend por el proxy de nginx: /api/empleados SIN token tiene que
+      #      contestar 401 (si el proxy estuviera roto daría 502/504/404).
+      # Limitación: el hook responde al instante y Render construye en segundo plano; mientras
+      # construye (o si ese build falla) sigue sirviendo la versión ANTERIOR, así que este smoke
+      # puede dar verde contra la versión vieja. Prueba que el entorno contesta, no qué versión corre.
+      - name: Smoke test (espera a que QA conteste)
+        shell: bash
+        env:
+          URL_API: https://pagina-ing3-api-qa.onrender.com
+          URL_FRONT: https://pagina-ing3-front-qa.onrender.com
+        run: |
+          echo "Esperando a que QA esté vivo..."
+          for i in $(seq 1 30); do
+            api=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL_API/health" || true)
+            front=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL_FRONT/" || true)
+            proxy=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL_FRONT/api/empleados" || true)
+            echo "intento $i: health=$api front=$front proxy=$proxy"
+            if [ "$api" = "200" ] && [ "$front" = "200" ] && [ "$proxy" = "401" ]; then
+              echo "✅ QA responde (API + BD + front + proxy)"; exit 0
+            fi
+            sleep 20
+          done
+          echo "❌ QA no respondió a tiempo"; exit 1
