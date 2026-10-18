@@ -39,6 +39,9 @@ export default function Layout() {
       <Container sx={{ py: 4 }}>
         <Outlet />
       </Container>
+      <Typography variant="caption" sx={{ display: "block", textAlign: "center", pb: 3, color: "#5c3a21" }}>
+        Las Melis · versión 6.0.0
+      </Typography>
     </Box>
   );
 }
