@@ -40,7 +40,7 @@ export default function Layout() {
         <Outlet />
       </Container>
       <Typography variant="caption" sx={{ display: "block", textAlign: "center", pb: 3, color: "#5c3a21" }}>
-        Las Melis · versión 6.0.0
+        Las Melis · versión 6.0.1
       </Typography>
     </Box>
   );
