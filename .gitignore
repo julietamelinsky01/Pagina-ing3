@@ -22,3 +22,7 @@ coveragereport/
 TestResults/
 **/TestResults/
 backend/**/coverage.json
+
+# Playwright (se generan en cada corrida)
+frontend/playwright-report/
+frontend/test-results/
