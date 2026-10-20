@@ -2,6 +2,34 @@
 
 Este archivo reúne las decisiones tomadas en los trabajos prácticos de Ingeniería de Software 3.
 
+## Enlaces del TP7
+
+**Paquetes públicos en ghcr.io**, etiquetados con el commit de la release `v7.0.0` (`db433c2`); el `docker pull` anda sin credenciales:
+
+- Backend: https://github.com/users/julietamelinsky01/packages/container/package/pagina-ing3-backend
+  `docker pull --platform linux/amd64 ghcr.io/julietamelinsky01/pagina-ing3-backend:sha-db433c2caf27958503963c1251e7c1c45e350819`
+- Frontend: https://github.com/users/julietamelinsky01/packages/container/package/pagina-ing3-frontend
+  `docker pull --platform linux/amd64 ghcr.io/julietamelinsky01/pagina-ing3-frontend:sha-db433c2caf27958503963c1251e7c1c45e350819`
+
+**La corrida donde la integración quedó VERDE y la e2e ROJA** (frenó la promoción):
+
+- Commit que rompió la app (renombra el botón «Nuevo empleado» a «Agregar empleado» en `frontend/src/pages/Empleados.jsx`; no toca `e2e/`): `b3fac50` (PR #32).
+- Corrida #42: https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/39467270450 — `integracion` verde, `e2e` roja, `deploy-prod` sin arrancar.
+- Los dos artefactos de reporte de esa corrida están al pie de la página de la corrida: `playwright-report-integracion` (verde) y `playwright-report-e2e` (rojo, con captura y traza del fallo).
+
+**La corrida completa en verde**, hasta PROD:
+
+- Tras el arreglo (PR #33, commit `db433c2`), corrida #44: https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/39470073157 — builds, `deploy-qa`, `integracion`, `e2e` y `deploy-prod` en verde, con mi aprobación registrada.
+- Primera corrida completa con las dos suites (todo verde, antes de romper nada): corrida #40, https://github.com/julietamelinsky01/Pagina-ing3/actions/runs/39323047184
+
+**Release:** https://github.com/julietamelinsky01/Pagina-ing3/releases/tag/v7.0.0
+
+**Entornos vivos** (los mismos del TP6): QA https://pagina-ing3-front-qa.onrender.com · PROD https://pagina-ing3-front-prod.onrender.com
+
+Los *Events* de Render (donde se lee «Triggered via Deploy Hook» con el `sha-<commit>` de cada deploy) no se pueden enlazar: los muestro en vivo en la defensa.
+
+Mi app tiene **dos Dockerfiles** (backend y frontend), así que son **dos paquetes** y **cuatro servicios** en Render (api y front, en QA y en PROD).
+
 ## Enlaces de este TP (TP6)
 
 **Paquetes públicos en ghcr.io** (etiquetados con el commit del merge `be64dbb`; el `docker pull` anda sin credenciales):
@@ -615,3 +643,104 @@ La métrica DORA que ejercito es el **tiempo de recuperación** (*time to restor
 ### Uso de IA
 
 Usé Claude (Anthropic) como asistente para guiarme paso a paso: diseñar la configuración por entorno (nginx con plantilla, `/health`), escribir los jobs `deploy-qa` y `deploy-prod` del `ci.yml`, y preparar el rollback medido. Yo hice los merges, creé los environments y los secrets en GitHub, configuré Render y Neon, rechacé y aprobé los deploys, y ejecuté el rollback. Verifiqué cada paso contra las corridas de *Actions*, los *Deploys* de Render y las URLs de QA y PROD.
+
+## TP7 — Contenedores de punta a punta: imagen inmutable, integración y e2e
+
+### Build once, deploy many: qué problema del TP6 resuelve
+
+En el TP6 mi pipeline publicaba la imagen en ghcr.io, pero Render **reconstruía** la app desde el repositorio en cada deploy: lo que corría en QA y en PROD no era la imagen que mis tests habían aprobado, sino otra construcción del mismo commit. Mi propio ejemplo: el `Dockerfile` del backend parte de una imagen base de .NET; si esa imagen base se actualiza entre el build de QA y el de PROD, los dos entornos podrían ejecutar binarios distintos aunque el código sea idéntico, y yo no podría demostrarlo.
+
+Desde el TP7 la imagen se **construye una sola vez** (último paso de cada job de build, después de los tests) y los entornos la **ejecutan tal cual**: Render ya no compila nada. QA y PROD corren el mismo binario. Promover es decirle a PROD «ejecutá la imagen `X`», la misma `X` que QA verificó.
+
+### Estrategia de etiquetas y de qué imagen corre cada servicio
+
+- **`sha-<commit>` en el registry** (el commit completo, 40 caracteres): trazabilidad exacta, de qué commit salió la imagen. Es la única etiqueta que publica mi pipeline.
+- **`v7.0.0` en git**: marca de cierre del práctico, puesta a mano sobre el commit que efectivamente está en PROD (`db433c2`), no sobre la punta de `main`.
+- **Por qué no publico `latest`**: es un puntero que se mueve con cada merge y no dice qué contenido hay detrás; si lo desplegara, después no podría decir qué desplegué, haya pasado la e2e o no. Con una sola etiqueta por imagen no hay forma de desplegar algo sin decir exactamente qué es.
+- **Limitación honesta:** los tags son mutables (volver a correr la corrida de un commit republica `sha-<commit>`, no necesariamente con el mismo contenido). Lo único inmutable es el digest (`@sha256:…`); no lo uso en este TP, pero el `imgURL` del hook lo acepta.
+- **Con qué imagen configuré los servicios de Render y por qué no es la que corre:** a los cuatro les cambié la fuente a *Existing Image* con `…:sha-59e747abfff4…` (la de un merge anterior), porque Render pide una imagen para cambiar la fuente y esa ya la había comprobado con un `pull`. Es sólo el punto de partida: lo que corre lo nombra cada deploy de mi pipeline con su `imgURL`. Por eso *Settings → Image* sigue mostrando `59e747a…` mientras el servicio ejecuta `db433c2…`. Consecuencia: **«Manual Deploy» desde el panel desplegaría la imagen vieja** y llevaría PROD para atrás sin avisar, así que los deploys los dispara sólo el pipeline.
+- **Servicios existentes:** no creé servicios nuevos; les cambié la fuente a los cuatro que ya tenía, lo que conserva sus URLs, variables, hooks e historial.
+
+### Del tag a la imagen, en un paso
+
+`git rev-list -n1 v7.0.0` devuelve el commit (`db433c2…`), y mi pipeline publicó las dos imágenes de ese commit con su nombre: `…-backend:sha-db433c2…` y `…-frontend:sha-db433c2…`. Volver a esa versión es mandarle esa etiqueta al hook (`imgURL`), el mismo mecanismo del deploy.
+
+### Cómo se comprueba, desde afuera, que un entorno ejecuta mi imagen
+
+En *Events* de cada servicio de Render, el deploy dice **«Triggered via Deploy Hook»** y nombra la imagen `sha-<commit>` de esa corrida (no un commit construido), y la misma etiqueta existe en mi paquete. Un deploy hecho a mano desde el panel se nota: no dice «Triggered via Deploy Hook» y no hay una corrida que lo respalde. El encabezado de cada servicio pasó de *Docker* a *Image*.
+
+**Lo que mi smoke test no prueba:** sólo pregunta si el sistema **responde** (`/health` con la base, el front y el proxy). Si un deploy falla, Render sigue sirviendo la versión anterior y el smoke da verde igual. Lo viste en la práctica: el `deploy-qa` tarda segundos porque QA ya está vivo con la versión previa. Cerrarlo automáticamente exigiría hornear el commit en la imagen (un `ARG` con `build-args`), que el endpoint de vida lo devuelva y que el smoke lo compare contra el commit de la corrida; en este TP sólo lo estudio, no lo implemento.
+
+### Mis pruebas: qué elegí y por qué
+
+**Integración** (`frontend/e2e/api.spec.js`, sin navegador, contra la API de QA ya desplegada, con su base de verdad):
+
+1. Alta + verificación + baja: crea un empleado, la base lo devuelve entre los activos, se lo da de baja y deja de estar.
+2. DNI inválido: la API contesta 400 y no se creó nada.
+3. **(Tercera, mía)** DNI repetido: la API contesta 409 y no aparece un segundo empleado. La elegí porque la unicidad del DNI se resuelve **consultando la base**: un doble de Moq acepta cualquier cosa, y esta prueba cubre justo lo que los unitarios del TP5 no pueden ver. Si se rompe, me escribe quien dé de alta empleados.
+
+**E2E** (`frontend/e2e/empleados.spec.js`, un navegador de verdad contra el front de QA, sin mocks de red):
+
+1. **Login:** ingresar lleva a la lista de empleados y la sesión sobrevive a recargar. **(Tercer flujo, mío)**: es lo que todo usuario hace todos los días; si no anda, me escriben.
+2. **Creación:** crear un empleado, verlo en la lista y darlo de baja (comprobando que desaparece de los activos).
+3. **Validación:** un DNI inválido muestra el error, el botón «Guardar» queda deshabilitado y no se crea nada.
+
+**Cada una cumple lo que pide la guía:** interactúa (llena y clickea), afirma sobre el dato que ella misma produjo (un nombre único con la hora adentro, un DNI único de 8 dígitos) y limpia lo que creó, comprobándolo. Busca por *label* y *role* (`getByLabel`, `getByRole`), no por CSS; los formularios de mi app ya tenían etiquetas accesibles (MUI `TextField` con `label`).
+
+**Qué NO puse en cada suite y por qué (pirámide):** no repito en e2e lo que ya cubren los unitarios (por ejemplo, cada regla de validación del DNI o de las fechas); ni pruebo en integración la pantalla. No cubrí Calendario ni Reporte semanal con e2e: son pocos flujos críticos a propósito, porque las e2e son las más lentas y las más frágiles.
+
+**Datos que quedan en QA:** mi app no borra empleados de verdad, «dar de baja» es un borrado lógico. Mis pruebas «limpian» dándolos de baja: salen de los activos, pero quedan inactivos en la base de QA. Lo acepto en QA porque cada nombre y DNI es único y no se pisan entre corridas.
+
+### Qué probás en integración y qué en e2e, y por qué no es lo mismo
+
+- **Integración:** que la API desplegada y su base de verdad se entienden (endpoint → base, y lo que la base acepta, rechaza y guarda). **No ve** si la pantalla usa ese endpoint.
+- **E2E:** el sistema entero como lo usa una persona. **No ve** lo que no recorren mis pocos flujos, y cuando se pone roja no dice quién se rompió por sí sola.
+- **Lo que el unitario no ve y la integración sí:** un cambio de una línea, como cambiar `DateTime.UtcNow` por `DateTime.Now`, deja verdes todos los unitarios (el doble acepta cualquier fecha) pero hace que Postgres rechace la escritura y la API conteste 500.
+
+**El par verde/rojo de mi corrida roja (#42), leído contra la tabla:** rompí **la aplicación** —el texto del botón «Nuevo empleado» pasó a «Agregar empleado» en `Empleados.jsx`—, sin tocar `e2e/`. Resultado: builds verdes, smoke **verde** (el sistema respondía), **integración verde** (3 de 3), **e2e roja** (1 pasó —el login— y 2 fallaron), `deploy-prod` sin arrancar. Diagnóstico con los dos reportes, sin mirar el código: la integración verde dice que la API y la base están sanas (guardó, rechazó y borró sin problemas); la e2e roja falló esperando `getByRole('button', { name: 'Nuevo empleado' })` hasta agotar el minuto, y la captura de la página, tomada al fallar, muestra un botón que dice «Agregar empleado». Entonces **se rompió el front**: fila 1 de la tabla (🟢 integración, 🔴 e2e). Si hubiera roto la API, la integración habría quedado roja y la e2e **no habría corrido** (su `needs` no se cumple).
+
+**Qué NO ataja mi gate:** una rotura que ninguno de mis seis tests recorra (por ejemplo, un cambio en el Calendario o en el Reporte semanal), y todo lo que sólo ocurre en producción con datos o carga reales.
+
+### Por qué mi integración es la «amplia» y no la «estrecha»
+
+Mi integración le habla a **la API de QA ya desplegada**, con su base de verdad. La alternativa «estrecha» sería armar la API en memoria dentro del pipeline (`WebApplicationFactory`) con un Postgres descartable como `services:` del job.
+
+- **Lo que gano:** con una fracción de la configuración pruebo el mismo concepto, y además compruebo que **el despliegue quedó bien** (la imagen, las variables y la conexión de QA), no sólo mi código.
+- **Lo que pierdo:** depende de que QA esté vivo (cold start), comparte base con las otras corridas y con la e2e (hay que cuidar que no se ensucien), y no puedo correr contra una base vacía y conocida.
+
+### El gate: cómo está armado y su límite conocido
+
+Cadena en un único workflow, disparada por el `push` a `main`:
+
+`build → deploy-qa (imgURL) → smoke → integracion → e2e → [aprobación] → deploy-prod (misma imagen) → smoke`
+
+con `integracion` en `needs: deploy-qa`, `e2e` en `needs: integracion` y `deploy-prod` en `needs: e2e`. Nada desarma el gate: no hay `continue-on-error`, ni `|| true` ni `exit 0` después de Playwright, ni `if: always()` / `!cancelled()` en los jobs de deploy (los únicos `!cancelled()` son los de los pasos que publican reporte). El environment `production` sigue con su required reviewer del TP6. En la corrida #42 se vio que la e2e roja frenó la promoción **antes** de pedirme la aprobación.
+
+**Límite conocido: QA es uno solo.** Con dos merges seguidos, la corrida B puede redesplegar QA mientras la integración o la e2e de la A lo están usando. Lo reconocería por un rojo que no es del código, o por un verde que en parte probó la imagen de B: mirando en *Events* del servicio de QA qué imagen está corriendo y a qué hora corrió el `deploy-qa` de B. Lo que haría: rechazar a mano la corrida A con su motivo (el `concurrency` no cancela un job que espera aprobación, sólo lo que está en cola) y quedarme con la B; y la regla de **un merge por vez** mientras la cadena corre. Un equipo real lo resuelve con un entorno por corrida, fuera del alcance de este TP.
+
+### Cold start, timeouts y tests flaky
+
+QA (plan gratis de Render) se duerme y tarda ~50 s en despertar. En el pipeline lo despiertan el smoke y la integración antes de la e2e, pero por internet un pedido suelto puede demorarse igual: por eso `playwright.config.js` usa **tiempos largos** (60 s por test, 15 s por aserción) y **un solo reintento**, sin ningún `sleep` fijo (Playwright espera solo a que el elemento aparezca). El cold start se resuelve con timeouts, **nunca salteando** tests.
+
+**Un test flaky** es uno que a veces pasa y a veces falla sin que cambie el código. Es peor que no tener test porque entrena al equipo a ignorar el rojo. Mi configuración no los esconde: un test que pasa recién al reintentar sale como *flaky* en el reporte, y por eso abro el reporte aunque la corrida esté verde.
+
+### Cómo la misma imagen del front sirve en QA y en PROD
+
+La imagen del front no tiene ninguna dirección de backend adentro: llama a la ruta relativa `/api`, y nginx (con una plantilla `default.conf.template` procesada con `envsubst` al arrancar) la reenvía al backend del entorno.
+
+- **Por variable de entorno (cada servicio de Render):** `BACKEND_URL` (la API de **su** entorno, sin barra final) y `DNS_RESOLVER` en los fronts; `ConnectionStrings__DefaultConnection` (la base de **su** entorno: `app_qa` o `app_prod`), `Jwt__Key`, `Jwt__Issuer` y `Jwt__Audience` en las APIs.
+- **Adentro de la imagen:** el código, la plantilla de nginx y valores por defecto pensados para `docker-compose`.
+- **La prueba:** cambié la fuente de los cuatro servicios y **no toqué ninguna variable**; QA y PROD siguen hablando cada uno con su API y su base. La misma imagen, configuración distinta.
+
+### Problemas encontrados y cómo los resolví
+
+- **Deploy parcial a PROD:** el primer intento del pipeline con `imgURL` falló en `deploy-prod` (`exit code 22`, un `4xx` de `curl -f`) después de haber desplegado la API de PROD: el front de PROD tenía mal configurada la imagen de su servicio. Quedó un deploy parcial (la API ya ejecutaba la imagen nueva; el front, no). Lo resolví corrigiendo la imagen de ese servicio en Render y **re-corriendo sólo el job que falló** (*Re-run failed jobs*, no *Re-run all jobs*, que también habría redesplegado QA). Aprendí que la api lleva `-backend` y el front `-frontend`: con el nombre cruzado Render contesta `400`.
+- **Comandos en el lugar equivocado:** pegué el comando de la terminal en el editor SQL de Neon y la URL del hook en la línea del `read`. `read -rs` va solo y espera el valor en la línea siguiente; los comandos de shell van en la terminal y el SQL en Neon.
+- **Usuario de pruebas y la contraseña de `admin`:** las pruebas necesitan iniciar sesión en QA. Creé un usuario **solo para las pruebas** (`e2e-qa`), con una contraseña propia cifrada con BCrypt, insertado únicamente en la base `app_qa`; sus credenciales viven en *secrets* del environment `qa` (`E2E_USER`, `E2E_PASSWORD`), nunca en el código. **Límite conocido:** la contraseña del usuario `admin` sembrado figura en el README de un repositorio público; en un sistema real se cambiaría en cada entorno.
+- **vitest y Playwright en la misma carpeta:** vitest matchea por defecto todo `*.spec.js` y habría roto el job `build-frontend`. Lo evité con `exclude: [...configDefaults.exclude, 'e2e/**']` en `vite.config.js` (cada runner con su carpeta), y comprobé que los 54 unitarios siguen pasando.
+- **Verificación antes de subir:** levanté una copia aislada de mi app con Docker Compose y corrí las 6 pruebas (3 de API y 3 de navegador) en verde antes de mergear el pipeline.
+- **Compartir QA entre corridas:** ver el límite conocido del gate.
+
+### Uso de IA
+
+Usé Claude (Anthropic) como asistente para guiarme paso a paso en este TP: escribir las suites de Playwright, los jobs `integracion` y `e2e`, el cambio de los hooks a `imgURL` y el cambio que rompe el front a propósito. **Yo** cambié la fuente de los cuatro servicios en Render, creé el usuario de pruebas en la base de QA, cargué los *secrets* en GitHub, hice los merges, aprobé los despliegues y publiqué la release. Verifiqué cada paso contra *Actions*, los *Events* de Render y los reportes de Playwright. Puedo explicar **qué verifica cada test, contra qué entorno corre y qué pasa si falla**: los seis corren contra QA (los de integración contra la API, los e2e contra el front); si fallan, `deploy-prod` no arranca y producción queda intacta, como pasó en la corrida #42.
