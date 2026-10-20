@@ -82,7 +82,7 @@ export default function Empleados() {
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Typography variant="h5" sx={{ fontWeight: 700 }}>Empleados</Typography>
-        <Button variant="contained" onClick={abrirNuevo}>Agregar empleado</Button>
+        <Button variant="contained" onClick={abrirNuevo}>Nuevo empleado</Button>
       </Box>
 
       <ToggleButtonGroup
