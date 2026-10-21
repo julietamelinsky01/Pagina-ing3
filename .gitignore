@@ -26,3 +26,10 @@ backend/**/coverage.json
 # Playwright (se generan en cada corrida)
 frontend/playwright-report/
 frontend/test-results/
+
+# Terraform: el estado guarda TODO lo que la herramienta sabe (incluidas contraseñas en texto plano).
+# Nunca se commitea. El .terraform.lock.hcl SÍ se commitea (fija versión y hash de cada provider).
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
