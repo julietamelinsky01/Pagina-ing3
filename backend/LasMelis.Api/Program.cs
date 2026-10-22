@@ -83,6 +83,14 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(frontendOrigin).AllowAnyHeader().AllowAnyMethod());
 });
 
+// Sentry: qué falla, qué tarda y qué se usa. El DSN llega por el entorno (SENTRY_DSN, sólo en PROD):
+// si no está —local, tests, QA— la librería queda apagada y la app anda igual.
+builder.WebHost.UseSentry(o =>
+{
+    o.Dsn = builder.Configuration["SENTRY_DSN"] ?? "";
+    o.TracesSampleRate = 1.0; // medir todos los pedidos: con el tráfico de una app de cursada sobra
+});
+
 var app = builder.Build();
 
 // Aplica migraciones pendientes automáticamente al arrancar, para que "dotnet run"
@@ -110,9 +118,14 @@ app.MapControllers();
 
 // Público (sin JWT): lo usa el smoke test del pipeline. Además de "el proceso está vivo",
 // prueba que la base responde: un /health que no toca la BD da verde con la conexión rota.
-app.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
+// GET y también HEAD: el plan gratuito de UptimeRobot pregunta con HEAD, y con sólo MapGet
+// contestaba 405 y el monitor marcaba PROD caída estando viva.
+app.MapMethods("/health", new[] { "GET", "HEAD" }, async (AppDbContext db, CancellationToken ct) =>
     await db.Database.CanConnectAsync(ct)
         ? Results.Ok(new { status = "ok" })
         : Results.Json(new { status = "db-unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable));
+
+// TEMPORAL (TP9): un error a propósito para verlo llegar a Sentry. Se saca al terminar el práctico.
+app.MapGet("/api/falla", string () => throw new InvalidOperationException("Falla de prueba del TP9"));
 
 app.Run();

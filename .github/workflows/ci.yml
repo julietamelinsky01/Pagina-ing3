@@ -5,6 +5,11 @@ on:
     branches: [main]
   push:
     branches: [main]
+    # Un merge que sólo toca documentación no tiene nada nuevo que desplegar: no dispara la cadena
+    # (y no hay que rechazar un deploy a PROD por un .md). Los PRs siguen corriendo siempre,
+    # porque la protección de main exige sus checks.
+    paths-ignore:
+      - "**.md"
 
 jobs:
   build-backend:
