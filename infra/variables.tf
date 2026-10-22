@@ -22,3 +22,9 @@ variable "region" {
   type    = string
   default = "oregon" # frankfurt | ohio | oregon | singapore | virginia
 }
+
+# El id de tu organización de Neon (Organization settings → General). No es un secreto, pero es
+# de TU cuenta: no tiene default y se pasa por el entorno con `export TF_VAR_neon_org_id=org-…`.
+variable "neon_org_id" {
+  type = string
+}

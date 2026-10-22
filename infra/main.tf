@@ -27,7 +27,8 @@ provider "render" {} # lee RENDER_API_KEY y RENDER_OWNER_ID del entorno
 # --- La base de datos: un proyecto de Neon propio, que se puede destruir entero sin rozar QA ni PROD ---
 
 resource "neon_project" "preprod" {
-  name = "pagina-ing3-preprod"
+  name   = "pagina-ing3-preprod"
+  org_id = var.neon_org_id # Neon agrupa los proyectos por organización y la API lo exige
 
   # El plan gratuito de Neon topea el historial en 6 horas; sin esta línea el primer apply falla.
   history_retention_seconds = 21600
