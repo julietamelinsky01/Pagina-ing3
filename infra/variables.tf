@@ -28,3 +28,8 @@ variable "region" {
 variable "neon_org_id" {
   type = string
 }
+
+variable "neon_region" {
+  type    = string
+  default = "aws-us-east-2"
+}

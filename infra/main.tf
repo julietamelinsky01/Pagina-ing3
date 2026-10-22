@@ -30,6 +30,10 @@ resource "neon_project" "preprod" {
   name   = "pagina-ing3-preprod"
   org_id = var.neon_org_id # Neon agrupa los proyectos por organización y la API lo exige
 
+  # Sin esto Neon elige la región y cada `apply` puede caer en otra (pasó: us-east-2 y después us-west-2).
+  # Fijarla es lo que hace que preprod vuelva IDÉNTICO.
+  region_id = var.neon_region
+
   # El plan gratuito de Neon topea el historial en 6 horas; sin esta línea el primer apply falla.
   history_retention_seconds = 21600
 }
