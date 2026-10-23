@@ -125,7 +125,5 @@ app.MapMethods("/health", new[] { "GET", "HEAD" }, async (AppDbContext db, Cance
         ? Results.Ok(new { status = "ok" })
         : Results.Json(new { status = "db-unavailable" }, statusCode: StatusCodes.Status503ServiceUnavailable));
 
-// TEMPORAL (TP9): un error a propósito para verlo llegar a Sentry. Se saca al terminar el práctico.
-app.MapGet("/api/falla", string () => throw new InvalidOperationException("Falla de prueba del TP9"));
 
 app.Run();
