@@ -24,7 +24,7 @@ jobs:
           RAMA: ${{ github.head_ref || github.ref_name }}
         run: echo "Rama $RAMA · commit $GITHUB_SHA"
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Preparar el constructor que sabe cachear
         uses: docker/setup-buildx-action@v4
@@ -104,7 +104,7 @@ jobs:
           RAMA: ${{ github.head_ref || github.ref_name }}
         run: echo "Rama $RAMA · commit $GITHUB_SHA"
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Preparar el constructor que sabe cachear
         uses: docker/setup-buildx-action@v4
@@ -230,7 +230,7 @@ jobs:
     environment: qa                            # de acá salen E2E_USER / E2E_PASSWORD (secrets del environment qa)
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -268,7 +268,7 @@ jobs:
     environment: qa
     timeout-minutes: 20                        # si algo se cuelga, el job muere en vez de esperar horas
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v6
